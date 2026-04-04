@@ -38,6 +38,7 @@ class FileConfigSource(ConfigSource):
             config_store.local_config.obj_detect_max_fps = config_data["obj_detect_max_fps"]
             config_store.local_config.apriltags_enable = config_data["apriltags_enable"]
             config_store.local_config.objdetect_enable = config_data["objdetect_enable"]
+            config_store.local_config.tagangle_enable = config_data["tagangle_enable"]
             config_store.local_config.video_folder = config_data["video_folder"]
 
         # Get calibration
