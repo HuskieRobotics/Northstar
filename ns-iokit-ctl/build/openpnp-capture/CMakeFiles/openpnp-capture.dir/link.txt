@@ -1,0 +1,2 @@
+/usr/bin/ar qc libopenpnp-capture.a "CMakeFiles/openpnp-capture.dir/common/libmain.cpp.o" "CMakeFiles/openpnp-capture.dir/common/context.cpp.o" "CMakeFiles/openpnp-capture.dir/common/logging.cpp.o" "CMakeFiles/openpnp-capture.dir/common/stream.cpp.o" "CMakeFiles/openpnp-capture.dir/mac/platformcontext.mm.o" "CMakeFiles/openpnp-capture.dir/mac/platformstream.mm.o" "CMakeFiles/openpnp-capture.dir/mac/uvcctrl.mm.o"
+/usr/bin/ranlib libopenpnp-capture.a

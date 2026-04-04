@@ -1,0 +1,22 @@
+%YAML:1.0
+---
+calibration_date: "2026-02-20 15:59:50.642653"
+mean_reprojection_error: "2.023448257192028"
+camera_resolution: !!opencv-matrix
+   rows: 2
+   cols: 1
+   dt: d
+   data: [ 1200., 1920. ]
+camera_matrix: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 1235.680146056121, 0., 989.24294471187079, 0.,
+       1234.5768513817616, 609.51022650913922, 0., 0., 1. ]
+distortion_coefficients: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ -0.43462515869967427, 0.1793423345927212,
+       0.00041505190003379987, -0.00046004569149295336,
+       -0.03513318603048534 ]

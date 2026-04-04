@@ -1,0 +1,21 @@
+%YAML:1.0
+---
+calibration_date: "2026-03-19 17:34:25"
+camera_resolution: !!opencv-matrix
+   rows: 2
+   cols: 1
+   dt: d
+   data: [ 1200., 1920. ]
+camera_matrix: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 1235.57244, 0., 970.22804, 0.,
+       1235.57244, 609.79477, 0., 0., 1. ]
+distortion_coefficients: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ -0.45482, 0.21586,
+       -0.00056, -0.00038,
+       -0.05260 ]

@@ -1,0 +1,144 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.1"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"build" : "openpnp-capture",
+					"childIndexes" : 
+					[
+						2
+					],
+					"jsonFile" : "directory-openpnp-capture-Debug-f050519dc4c1976e13a3.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.1"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "openpnp-capture",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"build" : "openpnp-capture/mac/tests",
+					"jsonFile" : "directory-openpnp-capture.mac.tests-Debug-1184a1ac9331e57e5e77.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.0"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 2,
+					"source" : "openpnp-capture/mac/tests",
+					"targetIndexes" : 
+					[
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "ns_iokit_ctl",
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						2
+					],
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "openpnp-capture",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "openpnp-capture-test",
+					"parentIndex" : 1,
+					"targetIndexes" : 
+					[
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ns_iokit_ctl::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ns_iokit_ctl-Debug-7a8bdb5e7e85fe2f9f33.json",
+					"name" : "ns_iokit_ctl",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "openpnp-capture::@6bd0902428de797247e9",
+					"jsonFile" : "target-openpnp-capture-Debug-ee5f9559d01f3b17e31a.json",
+					"name" : "openpnp-capture",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "openpnp-capture-test::@7c103ab4119b274ada8c",
+					"jsonFile" : "target-openpnp-capture-test-Debug-5d22fa7c26f63c4270b2.json",
+					"name" : "openpnp-capture-test",
+					"projectIndex" : 2
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/Users/geoff/GitHub/RobotCode2025Public/northstar/ns-iokit-ctl/build",
+		"source" : "/Users/geoff/GitHub/RobotCode2025Public/northstar/ns-iokit-ctl"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+   <key>Label</key>
+   <string>org.team3061.northstar.configBCR</string>
+   <key>ProgramArguments</key>
+   <array><string>/Users/nnrobot/Documents/GitHub/Northstar2025/northstar/cameras/robots/competition/configBCR.sh</string></array>
+   <key>StandardOutPath</key>
+    <string>/Users/nnrobot/Documents/GitHub/Northstar2025/northstar/logs/configBCROut.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/nnrobot/Documents/GitHub/Northstar2025/northstar/logs/configBCRError.log</string>
+   <key>RunAtLoad</key>
+   <true/>
+</dict>
+</plist>
