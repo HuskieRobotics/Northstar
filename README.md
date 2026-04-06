@@ -310,14 +310,24 @@ No Frames Debugging
 Future Work
 ===
 * √ explore camera configuration once lenses arrive
-* calibrate cameras
-    * try old Charuco board
-* adjust focus; glue in place
+* √ adjust focus; glue in place
+* √ calibrate cameras with new Charuco board
 * check performance of using pylon-cropped (need to update 3061-lib for new resolution as well)
 * I'm using the CoreML models provided by 6328.
 * We should learn how to create our own CoreML models.
     * [This example](https://apple.github.io/coremltools/docs-guides/source/introductory-quickstart.html) may be helpful.
-* get rid of poseestimation and taganglecalculator pipelines
+* √ get rid of poseestimation and taganglecalculator pipelines
+* perform macOS performance optimizations (update above section when done)
+    * sudo pmset -a sleep 0 displaysleep 0 disksleep 0
+    * disable the screensaver
+    * disable Spotlight indexing
+        * sudo mdutil -i off -a
+    * Reduce Motion & Transparency
+        * defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
+        * defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+        * defaults write com.apple.universalaccess reduceMotion -int 1
+        * defaults write com.apple.universalaccess reduceTransparency -int 1
+    * 
 
     
 Calibration
