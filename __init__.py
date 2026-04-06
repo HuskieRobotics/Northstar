@@ -73,25 +73,26 @@ if __name__ == "__main__":
     ntcore.NetworkTableInstance.getDefault().setServer(config.local_config.server_ip)
     ntcore.NetworkTableInstance.getDefault().startClient4(config.local_config.device_id)
 
-    # Power metrics configuration
-    POWER_METRICS_INTERVAL = 1  # seconds
+    if config.local_config.powermetrics_enable:
+        # Power metrics configuration
+        POWER_METRICS_INTERVAL = 1  # seconds
 
-    # Power metrics thread setup
-    latest_power_metrics = None
-    power_metrics_lock = threading.Lock()
-    power_metrics_last_publish = 0
+        # Power metrics thread setup
+        latest_power_metrics = None
+        power_metrics_lock = threading.Lock()
+        power_metrics_last_publish = 0
 
-    def power_metrics_worker():
-        """Background worker thread that periodically collects power metrics."""
-        global latest_power_metrics
-        while True:
-            time.sleep(POWER_METRICS_INTERVAL)
-            metrics = run_power_metrics()
-            with power_metrics_lock:
-                latest_power_metrics = metrics
+        def power_metrics_worker():
+            """Background worker thread that periodically collects power metrics."""
+            global latest_power_metrics
+            while True:
+                time.sleep(POWER_METRICS_INTERVAL)
+                metrics = run_power_metrics()
+                with power_metrics_lock:
+                    latest_power_metrics = metrics
 
-    power_metrics_thread = threading.Thread(target=power_metrics_worker, daemon=True)
-    power_metrics_thread.start()
+        power_metrics_thread = threading.Thread(target=power_metrics_worker, daemon=True)
+        power_metrics_thread.start()
 
     apriltags_frame_count = 0
     apriltags_last_print = 0
@@ -111,15 +112,16 @@ if __name__ == "__main__":
         # get a time string with current date and time with seconds
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
 
-        # Check power metrics from background thread
-        if time.time() - power_metrics_last_publish > POWER_METRICS_INTERVAL:
-            with power_metrics_lock:
-                if latest_power_metrics is not None:
-                    metrics = latest_power_metrics
-                    output_publisher.send_power_metrics(config, timestamp, metrics)
-                    power_metrics_last_publish = time.time()
-                    # if metrics:
-                        # if DEBUG: print(f"Power Metrics - CPU: {metrics['cpu_power']}, GPU: {metrics['gpu_power']}, ANE: {metrics['ane_power']}, Pressure: {metrics['pressure_level']}")
+        if config.local_config.powermetrics_enable:
+            # Check power metrics from background thread
+            if time.time() - power_metrics_last_publish > POWER_METRICS_INTERVAL:
+                with power_metrics_lock:
+                    if latest_power_metrics is not None:
+                        metrics = latest_power_metrics
+                        output_publisher.send_power_metrics(config, timestamp, metrics)
+                        power_metrics_last_publish = time.time()
+                        if metrics:
+                            if DEBUG: print(f"Power Metrics - CPU: {metrics['cpu_power']}, GPU: {metrics['gpu_power']}, ANE: {metrics['ane_power']}, Pressure: {metrics['pressure_level']}")
 
 
 
