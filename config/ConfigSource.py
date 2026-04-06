@@ -39,6 +39,7 @@ class FileConfigSource(ConfigSource):
             config_store.local_config.apriltags_enable = config_data["apriltags_enable"]
             config_store.local_config.objdetect_enable = config_data["objdetect_enable"]
             config_store.local_config.tagangle_enable = config_data["tagangle_enable"]
+            config_store.local_config.powermetrics_enable = config_data["powermetrics_enable"]
             config_store.local_config.video_folder = config_data["video_folder"]
 
         # Get calibration

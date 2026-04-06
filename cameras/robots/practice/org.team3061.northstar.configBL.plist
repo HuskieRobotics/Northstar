@@ -5,11 +5,11 @@
    <key>Label</key>
    <string>org.team3061.northstar.configBL</string>
    <key>ProgramArguments</key>
-   <array><string>/Users/nnrobot/Documents/GitHub/Northstar2025/northstar/cameras/robots/practice/configBL.sh</string></array>
+   <array><string>/Users/nnrobot/Documents/GitHub/Northstar/cameras/robots/practice/configBL.sh</string></array>
    <key>StandardOutPath</key>
-    <string>/Users/nnrobot/Documents/GitHub/Northstar2025/northstar/logs/configBLOut.log</string>
+    <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configBLOut.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/nnrobot/Documents/GitHub/Northstar2025/northstar/logs/configBLError.log</string>
+    <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configBLError.log</string>
    <key>RunAtLoad</key>
    <true/>
 </dict>
