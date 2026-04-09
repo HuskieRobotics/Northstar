@@ -1,6 +1,6 @@
 {
   "device_id": "northstar_power",
-  "server_ip": "127.0.0.1",
+  "server_ip": "10.30.61.2",
   "apriltags_stream_port": 9000,
   "objdetect_stream_port": 9001,
   "capture_impl": "pylon",
