@@ -5,7 +5,7 @@
    <key>Label</key>
    <string>org.team3061.northstar.configPower</string>
    <key>ProgramArguments</key>
-   <array><string>/Users/nnrobot/Documents/GitHub/Northstar/cameras/robots/competition/configBR.sh</string></array>
+   <array><string>/Users/nnrobot/Documents/GitHub/Northstar/cameras/robots/competition/configPower.sh</string></array>
    <key>StandardOutPath</key>
     <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configPowerOut.log</string>
     <key>StandardErrorPath</key>
