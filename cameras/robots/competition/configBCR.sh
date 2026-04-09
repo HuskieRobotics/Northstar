@@ -4,8 +4,8 @@ export GENICAM_CACHE_V3_1=/tmp/tmp2;
 cd ~/Documents/GitHub/Northstar;
 source ./venv/bin/activate;
 while [ True ];
-   date +'%Y-%m-%d %H:%M:%S'
-   do /Users/nnrobot/Documents/GitHub/Northstar/reenumerate/reenumerate -v -l 0x02210000
+   do date +'%Y-%m-%d %H:%M:%S'
+   /Users/nnrobot/Documents/GitHub/Northstar/reenumerate/reenumerate -v -l 0x02210000
    date +'%Y-%m-%d %H:%M:%S'
    nice -20 python3 __init__.py --config cameras/robots/competition/configBCR.json --calibration cameras/calibrations/calibration40777404.yml;
    date +'%Y-%m-%d %H:%M:%S'
