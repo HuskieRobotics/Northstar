@@ -9,8 +9,9 @@ import math
 from typing import List, Union
 
 import ntcore
+from apriltag_worker import DEMO_ID
 from config.config import ConfigStore
-from vision_types import CameraPoseObservation, FiducialPoseObservation, ObjDetectObservation, TagAngleObservation
+from vision_types import CameraPoseObservation, FiducialImageObservation, FiducialPoseObservation, ObjDetectObservation, TagAngleObservation
 
 
 class OutputPublisher:
@@ -21,6 +22,7 @@ class OutputPublisher:
         self,
         config_store: ConfigStore,
         timestamp: float,
+        image_observations: List[FiducialImageObservation],
         observation: Union[CameraPoseObservation, None],
         tag_angles: List[TagAngleObservation],
         demo_observation: Union[FiducialPoseObservation, None],
@@ -75,6 +77,7 @@ class NTOutputPublisher(OutputPublisher):
         self,
         config_store: ConfigStore,
         timestamp: float,
+        image_observations: List[FiducialImageObservation],
         observation: Union[CameraPoseObservation, None],
         tag_angles: List[TagAngleObservation],
         demo_observation: Union[FiducialPoseObservation, None],
@@ -103,6 +106,10 @@ class NTOutputPublisher(OutputPublisher):
                 observation_data.append(observation.pose_1.rotation().getQuaternion().X())
                 observation_data.append(observation.pose_1.rotation().getQuaternion().Y())
                 observation_data.append(observation.pose_1.rotation().getQuaternion().Z())
+        non_demo_observations = [x for x in image_observations if x.tag_id != DEMO_ID]
+        observation_data.append(len(non_demo_observations))
+        for image_observation in non_demo_observations:
+            observation_data.append(image_observation.tag_id)
         for tag_angle_observation in tag_angles:
             observation_data.append(tag_angle_observation.tag_id)
             for angle in tag_angle_observation.corners.ravel():

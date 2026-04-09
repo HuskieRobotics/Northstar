@@ -180,7 +180,7 @@ if __name__ == "__main__":
                 else:
                     # Publish observation
                     output_publisher.send_apriltag_observation(
-                        config, timestamp_out, pose_observation, tag_angle_observations, demo_pose_observation
+                        config, timestamp_out, image_observations, pose_observation, tag_angle_observations, demo_pose_observation
                     )
 
                     # Store last observations
