@@ -253,6 +253,7 @@ class PylonCapture(Capture):
                             self._last_failed_time =  time.time()
                         elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                             print(timeString, "Multiple consecutive capture failures, restarting")
+                            self._camera.DestroyDevice()
                             sys.exit(0)
                         
                         return False, None
@@ -263,7 +264,7 @@ class PylonCapture(Capture):
                 elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                     print(timeString, "Multiple consecutive capture failures, restarting")
                     self._camera.DestroyDevice()
-                    os._exit(0)
+                    sys.exit(0)
                 return False, None
 
 
