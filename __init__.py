@@ -158,6 +158,7 @@ if __name__ == "__main__":
 
         elif was_calibrating:
             # restart after calibration
+            capture._camera.DestroyDevice()
             sys.exit(0)
 
         elif config.local_config.has_calibration:
