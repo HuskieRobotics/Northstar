@@ -152,7 +152,7 @@ class AVFoundationCapture(Capture):
 
 class PylonCapture(Capture):
     """Reads from a Basler camera using pylon."""
-    failed_time_restart_timeout = 3
+    failed_time_restart_timeout = 6
 
     def __init__(self, mode: str = "", is_flipped: bool = False) -> None:
         self._mode = mode
