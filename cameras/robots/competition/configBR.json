@@ -8,5 +8,7 @@
   "obj_detect_max_fps": -1,
   "apriltags_enable": true,
   "objdetect_enable": false,
+  "tagangle_enable": false,
+  "powermetrics_enable": false,
   "video_folder": "./videos/"
 }

@@ -152,7 +152,8 @@ class AVFoundationCapture(Capture):
 
 class PylonCapture(Capture):
     """Reads from a Basler camera using pylon."""
-    failed_time_restart_timeout = 3
+    failed_time_restart_timeout = 6
+    failed_connection_timeout = 15
 
     def __init__(self, mode: str = "", is_flipped: bool = False) -> None:
         self._mode = mode
@@ -163,6 +164,7 @@ class PylonCapture(Capture):
     _converter: Union[None, pylon.ImageFormatConverter] = None
     _last_config: ConfigStore
     _last_failed_time: Union[None, float] = None
+    _last_failed_connection_time: Union[None, float] = None
 
     def get_frame(self, config_store: ConfigStore) -> Tuple[bool, cv2.Mat]:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
@@ -181,8 +183,17 @@ class PylonCapture(Capture):
                         self._device = pylon.TlFactory.GetInstance().CreateDevice(device_info)
             if self._device == None:
                 print(timeString, "Unable to find matching device")
+                if config_store.remote_config.camera_id != "":
+                    if self._last_failed_connection_time == None:
+                        self._last_failed_connection_time =  time.time()
+                    elif time.time() - self._last_failed_connection_time > PylonCapture.failed_connection_timeout:
+                        print(timeString, "No device found after ", PylonCapture.failed_connection_timeout, " seconds, restarting")
+                        sys.exit(0)
+                else:
+                    self._last_failed_connection_time = None
             else:
                 print(timeString, "Starting capture session")
+                self._last_failed_connection_time = None
                 self._camera = pylon.InstantCamera(self._device)
                 self._camera.Open()
                 self._camera.GrabLoopThreadPriorityOverride = True
@@ -253,6 +264,7 @@ class PylonCapture(Capture):
                             self._last_failed_time =  time.time()
                         elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                             print(timeString, "Multiple consecutive capture failures, restarting")
+                            self._camera.DestroyDevice()
                             sys.exit(0)
                         
                         return False, None
@@ -263,7 +275,7 @@ class PylonCapture(Capture):
                 elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                     print(timeString, "Multiple consecutive capture failures, restarting")
                     self._camera.DestroyDevice()
-                    os._exit(0)
+                    sys.exit(0)
                 return False, None
 
 

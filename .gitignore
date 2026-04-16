@@ -3,7 +3,7 @@
 
 videos/*.mkv
 models/*
-calibration/*
+calibrations/*
 logs/*.log
 
 ### C++ ###

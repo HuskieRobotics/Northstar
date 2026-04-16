@@ -22,6 +22,8 @@ class LocalConfig:
     obj_detect_max_fps: int = -1
     apriltags_enable: bool = False
     objdetect_enable: bool = True
+    tagangle_enable: bool = False
+    powermetrics_enable: bool = False
     video_folder: str = ""
     has_calibration: bool = False
     camera_matrix: numpy.typing.NDArray[numpy.float64] = None
