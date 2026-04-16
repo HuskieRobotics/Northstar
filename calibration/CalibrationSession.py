@@ -33,8 +33,8 @@ class CalibrationSession:
         # save the raw image for debugging purposes; name the file calibration_ followed by the number of saved frames
         # make a new folder for this calibration session using the timestamp
         if self._frames_saved == 0:
-            os.makedirs(f"./calibration/{self._timestamp}_{device_id}", exist_ok=True)
-        cv2.imwrite(f"./calibration/{self._timestamp}_{device_id}/calibration_{self._frames_saved}.jpg", image)
+            os.makedirs(f"./calibrations/{self._timestamp}_{device_id}", exist_ok=True)
+        cv2.imwrite(f"./calibrations/{self._timestamp}_{device_id}/calibration_{self._frames_saved}.jpg", image)
         self._frames_saved += 1
         time.sleep(1.0) # capture a frame every second
 
