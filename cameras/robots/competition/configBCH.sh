@@ -7,7 +7,7 @@ while [ True ];
    do date +'%Y-%m-%d %H:%M:%S'
    /Users/nnrobot/Documents/GitHub/Northstar/reenumerate/reenumerate -v -l 0x02210000
    date +'%Y-%m-%d %H:%M:%S'
-   nice -20 python3 __init__.py --config cameras/robots/competition/configBCR.json --calibration cameras/calibrations/calibration40777404.yml;
+   nice -20 python3 __init__.py --config cameras/robots/competition/configBCH.json --calibration cameras/calibrations/calibration40777404.yml;
    date +'%Y-%m-%d %H:%M:%S'
    sleep 1;
 done
