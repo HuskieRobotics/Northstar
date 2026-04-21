@@ -263,28 +263,19 @@ Practice Bot New Configuration
     * vendor ID: 0x2676
     * product ID: 0xba06
     * location: 0x01200000
-* center
-    * Basler da1280-54uc
-    * port 1
-    * configCenter.json
-    * calibration25249734.json
-    * ID: 25249734
-    * vendor ID: 0x2676
-    * product ID: 0xba03
-    * location: 0x00200000
 * BCL
-    * Basler daA1920-160um
+    * Basler daA1280-54um
     * port 3
     * configBCL.json
-    * calibration40777404.json
-    * ID: 40777404
+    * calibration24608727.json
+    * ID: 24608727
     * vendor ID: 0x2676
-    * product ID: 0xba06
+    * product ID: 0xba03
     * location: 0x02220000
-* BCR
+* BCH
     * Basler daA1920-160um
     * port 4
-    * configBCR.json
+    * configBCH.json
     * calibration40777399.json
     * ID: 40777399
     * vendor ID: 0x2676
@@ -335,4 +326,10 @@ Calibration
 * Calib Camera Calibration app
     * Optimize Cameras
         * OpenCV model with f, cx, cy, k1, k2, k3, p1, p2
-        * details: https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html#ga3207604e4b1a1758aa66acb6ed5aa65d
+        * details: 
+* camera_matrix
+    * A =   ⎡ fx  0  cx ⎤
+            ⎢ 0   fy cy ⎥
+            ⎣ 0   0  1  ⎦
+* distortion_coefficients
+    * (k1,k2,p1,p2,k3)
