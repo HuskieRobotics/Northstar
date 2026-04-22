@@ -7,7 +7,6 @@ Object detection models can be found [here](https://drive.google.com/drive/folde
 
 Development Notes
 ===
-
 * download cmake 3.31.8 source and build in terminal based on README
 * build ns-iokit-ctl (from ./ns-iokit-ctl)
     * mkdir build
@@ -116,6 +115,17 @@ Mac mini Configuration
     * details: https://stackoverflow.com/questions/30731782/run-sudo-as-specific-user-without-password
 * add .plist files to ~/Library/LaunchAgents
     * details: https://stackoverflow.com/questions/6442364/running-script-upon-login-in-mac-os-x/13372744#13372744
+* perform macOS performance optimizations
+    * sudo pmset -a sleep 0 displaysleep 0 disksleep 0
+    * disable the screensaver
+    * disable Spotlight indexing
+        * sudo mdutil -i off -a
+    * Reduce Motion & Transparency
+        * defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
+        * defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
+        * defaults write com.apple.universalaccess reduceMotion -int 1
+        * defaults write com.apple.universalaccess reduceTransparency -int 1
+
 
 Mac mini Ports and USB Locations
 ===
@@ -283,44 +293,18 @@ Practice Bot New Configuration
     * location: 0x02210000
 
 
-Pose Debugging Ideas
-===
-* verify on Schmit's Macbook with northstar test platform config
-* pull the latest code
-* export the AppleScript
-* associate the camera with the proper calibration file
-* calibrate all of the cameras
-* change the resolution of mono cameras to 1600x1200
-* calibrate all of the cameras
-
-No Frames Debugging
+Throughput Debugging
 ====
 * according to System Information, each camera is getting 4.48W (896mA) and 5 Gb/s
 * 
 
 Future Work
 ===
-* √ explore camera configuration once lenses arrive
-* √ adjust focus; glue in place
-* √ calibrate cameras with new Charuco board
-* check performance of using pylon-cropped (need to update 3061-lib for new resolution as well)
 * I'm using the CoreML models provided by 6328.
 * We should learn how to create our own CoreML models.
     * [This example](https://apple.github.io/coremltools/docs-guides/source/introductory-quickstart.html) may be helpful.
-* √ get rid of poseestimation and taganglecalculator pipelines
-* perform macOS performance optimizations (update above section when done)
-    * sudo pmset -a sleep 0 displaysleep 0 disksleep 0
-    * disable the screensaver
-    * disable Spotlight indexing
-        * sudo mdutil -i off -a
-    * Reduce Motion & Transparency
-        * defaults write com.apple.Accessibility DifferentiateWithoutColor -int 1
-        * defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
-        * defaults write com.apple.universalaccess reduceMotion -int 1
-        * defaults write com.apple.universalaccess reduceTransparency -int 1
-    * 
 
-    
+
 Calibration
 ===
 * Calib Camera Calibration app
