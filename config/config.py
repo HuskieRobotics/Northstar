@@ -5,10 +5,20 @@
 # license that can be found in the LICENSE file at
 # the root directory of this project.
 
+import re
 from dataclasses import dataclass
 
 import numpy
 import numpy.typing
+
+
+def sanitize_camera_id(camera_id: str) -> str:
+    """Convert a camera ID to a form that is safe to use in a filename.
+
+    Pylon camera IDs are bare serial numbers, but AVFoundation IDs are colon
+    separated (location:vendor:product) and the default capture uses an index.
+    """
+    return re.sub(r"[^A-Za-z0-9_-]", "", camera_id)
 
 
 @dataclass
@@ -25,6 +35,9 @@ class LocalConfig:
     tagangle_enable: bool = False
     powermetrics_enable: bool = False
     video_folder: str = ""
+    calibration_folder: str = "cameras/calibrations/"
+
+    # Populated by CalibrationConfigSource based on remote_config.camera_id
     has_calibration: bool = False
     camera_matrix: numpy.typing.NDArray[numpy.float64] = None
     distortion_coefficients: numpy.typing.NDArray[numpy.float64] = None

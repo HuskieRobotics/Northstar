@@ -17,7 +17,7 @@ from apriltag_worker import apriltag_worker
 from calibration.CalibrationCommandSource import CalibrationCommandSource, NTCalibrationCommandSource
 from calibration.CalibrationSession import CalibrationSession
 from config.config import ConfigStore, LocalConfig, RemoteConfig
-from config.ConfigSource import ConfigSource, FileConfigSource, NTConfigSource
+from config.ConfigSource import CalibrationConfigSource, ConfigSource, FileConfigSource, NTConfigSource
 from objdetect_worker import objdetect_worker
 from output.OutputPublisher import NTOutputPublisher, OutputPublisher
 from output.StreamServer import MjpegServer, StreamServer
@@ -35,12 +35,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.json")
-    parser.add_argument("--calibration", default="calibration.yml")
     args = parser.parse_args()
 
     config = ConfigStore(LocalConfig(), RemoteConfig())
-    local_config_source: ConfigSource = FileConfigSource(args.config, args.calibration)
+    local_config_source: ConfigSource = FileConfigSource(args.config)
     remote_config_source: ConfigSource = NTConfigSource()
+    calibration_config_source: ConfigSource = CalibrationConfigSource()
     calibration_command_source: CalibrationCommandSource = NTCalibrationCommandSource()
     local_config_source.update(config)
 
@@ -101,12 +101,17 @@ if __name__ == "__main__":
     objdetect_last_print = 0
     was_calibrating = False
     was_recording = False
+    no_calibration_last_print = 0
     last_image_observations: List[FiducialImageObservation] = []
     last_objdetect_observations: List[ObjDetectObservation] = []
     video_frame_cache: List[cv2.Mat] = []
 
     while True:
         remote_config_source.update(config)
+
+        # Load the calibration for the current camera before capturing from it
+        calibration_config_source.update(config)
+
         success, image = capture.get_frame(config)
         timestamp = time.time()
         # get a time string with current date and time with seconds
@@ -153,7 +158,9 @@ if __name__ == "__main__":
                 calibration_session_server = MjpegServer()
                 calibration_session_server.start(7999)
             was_calibrating = True
-            calibration_session.process_frame(image, config.local_config.device_id)
+            calibration_session.process_frame(
+                image, config.local_config.device_id, config.remote_config.camera_id
+            )
             calibration_session_server.set_frame(image)
 
         elif was_calibrating:
@@ -239,6 +246,8 @@ if __name__ == "__main__":
                 video_frame_cache = []
 
         else:
-            # No calibration
-            print("No calibration found")
+            # No calibration (CalibrationConfigSource logs the reason when the camera changes)
+            if time.time() - no_calibration_last_print > 5:
+                no_calibration_last_print = time.time()
+                print(timeString, "No calibration found for camera", config.remote_config.camera_id)
             time.sleep(0.5)
