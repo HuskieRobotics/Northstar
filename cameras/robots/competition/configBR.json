@@ -3,7 +3,7 @@
   "server_ip": "10.30.61.2",
   "apriltags_stream_port": 8000,
   "objdetect_stream_port": 8001,
-  "capture_impl": "pylon",
+  "capture_impl": "pylon-cropped",
   "obj_detect_model": "models/coral_v1_grayscale.mlmodel",
   "obj_detect_max_fps": -1,
   "apriltags_enable": true,

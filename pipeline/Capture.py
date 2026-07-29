@@ -166,6 +166,21 @@ class PylonCapture(Capture):
     _last_failed_time: Union[None, float] = None
     _last_failed_connection_time: Union[None, float] = None
 
+    @staticmethod
+    def _set_aligned(node, value: float) -> None:
+        """Set an integer node, clamping to its range and rounding down to its increment."""
+        minimum = node.GetMin()
+        maximum = node.GetMax()
+        value = min(max(int(value), minimum), maximum)
+        try:
+            increment = node.GetInc()
+        except Exception:
+            increment = 1
+        if increment > 1:
+            # Valid values are offset from the minimum by a multiple of the increment
+            value = minimum + (value - minimum) // increment * increment
+        node.SetValue(value)
+
     def get_frame(self, config_store: ConfigStore) -> Tuple[bool, cv2.Mat]:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
         if self._camera != None and self._config_changed(self._last_config, config_store):
@@ -227,10 +242,18 @@ class PylonCapture(Capture):
                     self._camera.BalanceRatio.SetValue(1.2)
 
                 elif self._mode == "cropped":
-                    self._camera.GetNodeMap().GetNode("Width").SetValue(1600)
-                    self._camera.GetNodeMap().GetNode("Height").SetValue(1200)
-                    self._camera.GetNodeMap().GetNode("OffsetX").SetValue(168)
-                    self._camera.GetNodeMap().GetNode("OffsetY").SetValue(8)
+                    fullWidth = self._camera.GetNodeMap().GetNode("Width").GetValue();
+                    fullHeight = self._camera.GetNodeMap().GetNode("Height").GetValue();
+                    self._camera.GetNodeMap().GetNode("Width").SetValue(config_store.remote_config.camera_resolution_width)
+                    self._camera.GetNodeMap().GetNode("Height").SetValue(config_store.remote_config.camera_resolution_height)
+                    self._set_aligned(
+                        self._camera.GetNodeMap().GetNode("OffsetX"),
+                        (fullWidth - config_store.remote_config.camera_resolution_width) / 2,
+                    )
+                    self._set_aligned(
+                        self._camera.GetNodeMap().GetNode("OffsetY"),
+                        (fullHeight - config_store.remote_config.camera_resolution_height) / 2,
+                    )
 
                 if self._is_flipped:
                     self._camera.GetNodeMap().GetNode("ReverseX").SetValue(True)
