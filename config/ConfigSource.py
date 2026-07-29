@@ -6,12 +6,14 @@
 # the root directory of this project.
 
 import json
+import os
 
 import cv2
 import time
 import ntcore
 import numpy
-from config.config import ConfigStore, RemoteConfig
+from typing import Union
+from config.config import ConfigStore, LocalConfig, RemoteConfig, sanitize_camera_id
 
 
 class ConfigSource:
@@ -20,9 +22,8 @@ class ConfigSource:
 
 
 class FileConfigSource(ConfigSource):
-    def __init__(self, config_filename: str, calibration_filename: str) -> None:
+    def __init__(self, config_filename: str) -> None:
         self._config_filename = config_filename
-        self._calibration_filename = calibration_filename
         pass
 
     def update(self, config_store: ConfigStore) -> None:
@@ -41,9 +42,41 @@ class FileConfigSource(ConfigSource):
             config_store.local_config.tagangle_enable = config_data["tagangle_enable"]
             config_store.local_config.powermetrics_enable = config_data["powermetrics_enable"]
             config_store.local_config.video_folder = config_data["video_folder"]
+            config_store.local_config.calibration_folder = config_data.get(
+                "calibration_folder", LocalConfig.calibration_folder
+            )
 
-        # Get calibration
-        calibration_store = cv2.FileStorage(self._calibration_filename, cv2.FILE_STORAGE_READ)
+
+class CalibrationConfigSource(ConfigSource):
+    """Load the calibration for the camera identified by the remote config."""
+
+    # Camera ID of the most recent load attempt, successful or not
+    _loaded_camera_id: Union[str, None] = None
+
+    def update(self, config_store: ConfigStore) -> None:
+        camera_id = config_store.remote_config.camera_id
+        if camera_id == self._loaded_camera_id:
+            return
+        self._loaded_camera_id = camera_id
+
+        # Discard the previous camera's calibration before loading the new one
+        config_store.local_config.has_calibration = False
+        config_store.local_config.camera_matrix = None
+        config_store.local_config.distortion_coefficients = None
+
+        timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+        if camera_id == "":
+            print(timeString, "Waiting for camera ID to load calibration")
+            return
+
+        filename = os.path.join(
+            config_store.local_config.calibration_folder, "calibration" + sanitize_camera_id(camera_id) + ".yml"
+        )
+        if not os.path.exists(filename):
+            print(timeString, "No calibration file for camera", camera_id, "at", filename)
+            return
+
+        calibration_store = cv2.FileStorage(filename, cv2.FILE_STORAGE_READ)
         camera_matrix = calibration_store.getNode("camera_matrix").mat()
         distortion_coefficients = calibration_store.getNode("distortion_coefficients").mat()
         calibration_store.release()
@@ -51,6 +84,9 @@ class FileConfigSource(ConfigSource):
             config_store.local_config.camera_matrix = camera_matrix
             config_store.local_config.distortion_coefficients = distortion_coefficients
             config_store.local_config.has_calibration = True
+            print(timeString, "Loaded calibration for camera", camera_id, "from", filename)
+        else:
+            print(timeString, "Failed to read calibration for camera", camera_id, "from", filename)
 
 
 class NTConfigSource(ConfigSource):
