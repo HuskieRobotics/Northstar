@@ -61,8 +61,6 @@ Development Notes
     * they are available here: https://drive.google.com/drive/folders/1l3Bx3FGBGiY3hcpaPtvrNNPMZHChCi9w
 * run the AppleScript file from the terminal:
     * osascript northstar_launch.scpt
-* installed opencv 4
-    * brew install opencv@4
 
 Mac mini Configuration
 ===
@@ -127,6 +125,11 @@ Mac mini Configuration
         * defaults write com.apple.Accessibility ReduceMotionEnabled -int 1
         * defaults write com.apple.universalaccess reduceMotion -int 1
         * defaults write com.apple.universalaccess reduceTransparency -int 1
+* install opencv 4
+    * brew install opencv@4
+* build aruco_max_cpp
+    * ./install.sh
+
 
 
 Mac mini Ports and USB Locations
