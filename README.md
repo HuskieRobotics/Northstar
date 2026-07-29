@@ -61,6 +61,8 @@ Development Notes
     * they are available here: https://drive.google.com/drive/folders/1l3Bx3FGBGiY3hcpaPtvrNNPMZHChCi9w
 * run the AppleScript file from the terminal:
     * osascript northstar_launch.scpt
+* installed opencv 4
+    * brew install opencv@4
 
 Mac mini Configuration
 ===

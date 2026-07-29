@@ -35,6 +35,7 @@ class FileConfigSource(ConfigSource):
             config_store.local_config.apriltags_stream_port = config_data["apriltags_stream_port"]
             config_store.local_config.objdetect_stream_port = config_data["objdetect_stream_port"]
             config_store.local_config.capture_impl = config_data["capture_impl"]
+            config_store.local_config.apriltag_max_fps = config_data["apriltag_max_fps"]
             config_store.local_config.obj_detect_model = config_data["obj_detect_model"]
             config_store.local_config.obj_detect_max_fps = config_data["obj_detect_max_fps"]
             config_store.local_config.apriltags_enable = config_data["apriltags_enable"]
@@ -98,6 +99,8 @@ class NTConfigSource(ConfigSource):
     _camera_exposure_sub: ntcore.IntegerSubscriber
     _camera_gain_sub: ntcore.DoubleSubscriber
     _camera_denoise_sub: ntcore.DoubleSubscriber
+    _camera_balance_red_sub: ntcore.DoubleSubscriber
+    _camera_balance_blue_sub: ntcore.DoubleSubscriber 
     _fiducial_size_m_sub: ntcore.DoubleSubscriber
     _tag_layout_sub: ntcore.DoubleSubscriber
     _is_recording_sub: ntcore.BooleanSubscriber
@@ -105,6 +108,7 @@ class NTConfigSource(ConfigSource):
     _event_name_sub: ntcore.StringSubscriber
     _match_type_sub: ntcore.IntegerSubscriber
     _match_number_sub: ntcore.IntegerSubscriber
+    _throttle_fps_sub: ntcore.DoubleSubscriber
 
     def update(self, config_store: ConfigStore) -> None:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
@@ -129,6 +133,8 @@ class NTConfigSource(ConfigSource):
             )
             self._camera_gain_sub = nt_table.getDoubleTopic("camera_gain").subscribe(RemoteConfig.camera_gain)
             self._camera_denoise_sub = nt_table.getDoubleTopic("camera_denoise").subscribe(RemoteConfig.camera_denoise)
+            self._camera_balance_red_sub = nt_table.getDoubleTopic("camera_balance_red").subscribe(RemoteConfig.camera_balance_red)
+            self._camera_balance_blue_sub = nt_table.getDoubleTopic("camera_balance_blue").subscribe(RemoteConfig.camera_balance_blue)
             self._fiducial_size_m_sub = nt_table.getDoubleTopic("fiducial_size_m").subscribe(
                 RemoteConfig.fiducial_size_m
             )
@@ -138,6 +144,7 @@ class NTConfigSource(ConfigSource):
             self._event_name_sub = nt_table.getStringTopic("event_name").subscribe("")
             self._match_type_sub = nt_table.getIntegerTopic("match_type").subscribe(0)
             self._match_number_sub = nt_table.getIntegerTopic("match_number").subscribe(0)
+            self._throttle_fps_sub = nt_table.getDoubleTopic("throttle_fps").subscribe(-1)
             self._init_complete = True
 
         # Read config data
@@ -148,6 +155,8 @@ class NTConfigSource(ConfigSource):
         config_store.remote_config.camera_exposure = self._camera_exposure_sub.get()
         config_store.remote_config.camera_gain = self._camera_gain_sub.get()
         config_store.remote_config.camera_denoise = self._camera_denoise_sub.get()
+        config_store.remote_config.camera_balance_red = self._camera_balance_red_sub.get()
+        config_store.remote_config.camera_balance_blue = self._camera_balance_blue_sub.get()
         config_store.remote_config.fiducial_size_m = self._fiducial_size_m_sub.get()
         try:
             config_store.remote_config.tag_layout = json.loads(self._tag_layout_sub.get())
@@ -159,3 +168,4 @@ class NTConfigSource(ConfigSource):
         config_store.remote_config.event_name = self._event_name_sub.get()
         config_store.remote_config.match_type = self._match_type_sub.get()
         config_store.remote_config.match_number = self._match_number_sub.get()
+        config_store.remote_config.throttle_fps = self._throttle_fps_sub.get()

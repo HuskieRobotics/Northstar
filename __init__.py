@@ -96,9 +96,10 @@ if __name__ == "__main__":
 
     apriltags_frame_count = 0
     apriltags_last_print = 0
-    objdetect_next_frame = -1
-    objdetect_frame_count = 0
+    apriltags_last_frame_time = 0
+    objdetect_frame_count = -1
     objdetect_last_print = 0
+    objdetect_last_frame_time = 0
     was_calibrating = False
     was_recording = False
     no_calibration_last_print = 0
@@ -171,6 +172,19 @@ if __name__ == "__main__":
         elif config.local_config.has_calibration:
             # AprilTag pipeline
             if config.local_config.apriltags_enable:
+                # Apply FPS limit for apriltag detection
+                throttle_fps = config.remote_config.throttle_fps
+                apriltag_max_fps = config.local_config.apriltag_max_fps
+                if throttle_fps < 0 and apriltag_max_fps < 0:
+                    effective_max_fps = -1
+                elif throttle_fps < 0:
+                    effective_max_fps = apriltag_max_fps
+                elif apriltag_max_fps < 0:
+                    effective_max_fps = throttle_fps
+                else:
+                    effective_max_fps = min(throttle_fps, apriltag_max_fps)
+                if effective_max_fps < 0 or (timestamp - apriltags_last_frame_time) >= (1.0 / effective_max_fps):
+                    apriltags_last_frame_time = timestamp
                 try:
                     apriltag_worker_in.put((timestamp, image, config), block=False)
                 except:  # No space in queue
@@ -206,10 +220,18 @@ if __name__ == "__main__":
             # Object detection pipeline
             if config.local_config.objdetect_enable:
                 # Apply FPS limit for object detection
-                if objdetect_next_frame == -1:
-                    objdetect_next_frame = timestamp
-                if config.local_config.obj_detect_max_fps < 0 or timestamp > objdetect_next_frame:
-                    objdetect_next_frame += 1 / config.local_config.obj_detect_max_fps
+                throttle_fps = config.remote_config.throttle_fps
+                obj_max_fps = config.local_config.obj_detect_max_fps
+                if throttle_fps < 0 and obj_max_fps < 0:
+                    effective_max_fps = -1
+                elif throttle_fps < 0:
+                    effective_max_fps = obj_max_fps
+                elif obj_max_fps < 0:
+                    effective_max_fps = throttle_fps
+                else:
+                    effective_max_fps = min(throttle_fps, obj_max_fps)
+                if effective_max_fps < 0 or (timestamp - objdetect_last_frame_time) >= (1.0 / effective_max_fps):
+                    objdetect_last_frame_time = timestamp
                     try:
                         objdetect_worker_in.put((timestamp, image, config), block=False)
                     except:  # No space in queue
