@@ -131,16 +131,21 @@ Mac mini Ports and USB Locations
 ===
 * back (looking at ports from left to right)
     * 0
-        * location: 0x01200000
+        * USB 3 location: 0x01200000
+        * USB 2 location: 0x01100000
     * 1
-        * location: 0x00200000
+        * USB 3 location: 0x00200000
+        * USB 2 location: 0x00100000
     * 2
-        * location: 0x03200000
+        * USB 3 location: 0x03200000
+        * USB 2 location: 0x03100000
 * front (looking at ports from left to right)
     * 3
-        * location: 0x02220000
+        * USB 3 location: 0x02220000
+        * USB 2 location: 0x02120000
     * 4
-        * location: 0x02210000
+        * USB 3 location: 0x02210000
+        * USB 2 location: 0x02110000
 
 Cameras
 ===
