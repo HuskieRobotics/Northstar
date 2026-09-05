@@ -109,6 +109,38 @@ sources for every literal the app depends on and exits non-zero when one disappe
 
 Everything it checks is declared in one place: [`lib/contract.ts`](lib/contract.ts).
 
+## Colour
+
+Team palette: **#FF4800** orange, **#002F55** navy, **#FFFFFF**, **#ACA89F** taupe.
+
+The orange is close enough to a danger red that using it decoratively *and* keeping a separate red
+for failures would put two competing warm colours on the same card. So the orange carries the
+**failure/attention** state: a healthy board is calm navy, white and green, and anything orange means
+look here. Raw #FF4800 also appears as the header rule, the wordmark, active-nav underline and focus
+ring.
+
+Every value was contrast-checked against the surface it sits on, because this gets read across a pit
+under bad lighting:
+
+| | on navy #002F55 | on white |
+| --- | --- | --- |
+| Body text | #FFFFFF — 13.7:1 | #002F55 — 13.7:1 |
+| Muted | #ACA89F — 5.8:1 | #6E6A62 — 5.4:1 |
+| OK | #4ADE80 — 7.8:1 | #0E7A4D — 5.4:1 |
+| Warn | #FFC24B — 8.5:1 | #8A5A00 — 5.9:1 |
+| Fail | #FF6A33 — 4.8:1 | #C43B00 — 5.3:1 |
+| Starting | #7CC4F5 — 7.2:1 | #12599E — 7.1:1 |
+
+Two consequences worth knowing before editing the palette:
+
+- **Raw #FF4800 is 4.02:1 on navy** — fine for borders and large elements, short of the 4.5:1 needed
+  for small text. Failure *text* therefore uses #FF6A33, a lightened team orange.
+- **#ACA89F is only 2.37:1 on white.** It works beautifully as muted text on navy, but in light mode
+  it is restricted to borders and dividers; muted text there uses a darkened #6E6A62.
+
+Colour is never load-bearing on its own — every status also carries a glyph (● ▲ ✕ ◐ ? –) and a text
+label, so the chain stays readable for colourblind users and on washed-out screens.
+
 ## Notable implementation constraints
 
 These are not arbitrary; each was measured. Details in the design doc.

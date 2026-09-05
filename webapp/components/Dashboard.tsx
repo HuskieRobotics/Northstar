@@ -228,6 +228,9 @@ function Card({
 
       <div className="detail">{detail?.detail ?? detail?.label ?? ""}</div>
 
+      {/* Camera vitals only. The power-metrics instance has no camera, so a grid
+          of empty dashes would be noise rather than information. */}
+      {inst.isCamera && (
       <div className="vitals">
         <div>
           <span className="k">FPS</span>
@@ -270,6 +273,7 @@ function Card({
           </span>
         </div>
       </div>
+      )}
 
       {inst.notes.map((n) => (
         <div key={n} className="note">
@@ -277,6 +281,7 @@ function Card({
         </div>
       ))}
 
+      {(inst.isCamera || inst.streams.apriltag !== undefined) && (
       <div className="thumbs">
         {inst.streams.apriltag !== undefined && (
           <Thumb
@@ -298,12 +303,15 @@ function Card({
             onOpen={onOpen}
           />
         )}
-        {inst.streams.apriltag === undefined && inst.streams.objdetect === undefined && (
-          <div className="thumb">
-            <div className="placeholder">no streams enabled</div>
-          </div>
-        )}
+        {inst.isCamera &&
+          inst.streams.apriltag === undefined &&
+          inst.streams.objdetect === undefined && (
+            <div className="thumb">
+              <div className="placeholder">no streams enabled</div>
+            </div>
+          )}
       </div>
+      )}
     </div>
   );
 }
