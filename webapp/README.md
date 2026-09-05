@@ -124,6 +124,39 @@ and a developer checkout. To reproduce launchd's environment in a terminal befor
 env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" USER="$USER" bash deploy/webapp.sh
 ```
 
+### `EPERM: operation not permitted` reading node_modules
+
+If the launcher gets past PATH and then fails with `EPERM` on a file that plainly exists, the repo is
+almost certainly inside **`~/Documents`**, which macOS protects with TCC.
+
+TCC grants access **per executable**. Terminal has the grant — which is why the exact same command
+works interactively — but a launchd agent has none and cannot prompt for one, so `node` is refused.
+The Python vision instances keep working because `python3` was granted at some point; a newly
+installed `node` has not been.
+
+Confirm it by running the bundled check both ways and comparing:
+
+```bash
+bash deploy/check-env.sh                                    # from Terminal
+env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    USER="$USER" bash deploy/check-env.sh                   # as launchd sees it
+```
+
+Passing the first and failing the READ test in the second is TCC. The script also checks ownership,
+ACLs and quarantine flags, so it rules out the ordinary permission causes at the same time.
+
+Two fixes:
+
+- **Move the repo out of `~/Documents`** — e.g. `~/Northstar`. Recommended for a robot: it removes
+  the whole class of failure permanently, including for the vision instances, whose current grant an
+  OS update could reset. Costs a one-time path update across every plist and `config*.sh`.
+- **Grant Full Disk Access to the node binary** — System Settings → Privacy & Security → Full Disk
+  Access → `+`, then Cmd+Shift+G and enter the path from `which node`. Faster, but the grant is tied
+  to that specific binary and a node upgrade can reset it.
+
+Note that moving only the web app does not help: it reads the repo's configs, logs, calibrations and
+recordings, so it needs access to that tree wherever it lives.
+
 > **nvm is a poor fit for a robot.** Its node lives under a versioned path that changes on upgrade,
 > and nvm itself is a shell function that only exists in an interactive shell. Prefer a system-wide
 > install — Homebrew or the official pkg — on any machine that must boot unattended.
