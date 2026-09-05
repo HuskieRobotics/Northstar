@@ -126,8 +126,8 @@ env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" USER="$USER" bash deplo
 
 ### `EPERM: operation not permitted` reading node_modules
 
-If the launcher gets past PATH and then fails with `EPERM` on a file that plainly exists, the repo is
-almost certainly inside **`~/Documents`**, which macOS protects with TCC.
+**The deployment lives at `~/Northstar` specifically to avoid this.** If you see it, the repo has
+ended up inside **`~/Documents`**, which macOS protects with TCC.
 
 TCC grants access **per executable**. Terminal has the grant — which is why the exact same command
 works interactively — but a launchd agent has none and cannot prompt for one, so `node` is refused.

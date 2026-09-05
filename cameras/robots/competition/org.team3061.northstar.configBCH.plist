@@ -5,11 +5,11 @@
    <key>Label</key>
    <string>org.team3061.northstar.configBCH</string>
    <key>ProgramArguments</key>
-   <array><string>/Users/nnrobot/Documents/GitHub/Northstar/cameras/robots/competition/configBCH.sh</string></array>
+   <array><string>/Users/nnrobot/Northstar/cameras/robots/competition/configBCH.sh</string></array>
    <key>StandardOutPath</key>
-    <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configBCHOut.log</string>
+    <string>/Users/nnrobot/Northstar/logs/configBCHOut.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configBCHError.log</string>
+    <string>/Users/nnrobot/Northstar/logs/configBCHError.log</string>
    <key>RunAtLoad</key>
    <true/>
 </dict>

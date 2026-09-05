@@ -107,7 +107,7 @@ launchd redirects each instance's stdout and stderr to separate files:
 Notable characteristics:
 
 - The plists contain **absolute paths** under the deployment account
-  (`/Users/nnrobot/Documents/GitHub/Northstar/logs/...`), which differ from a developer checkout.
+  (`/Users/nnrobot/Northstar/logs/...`), which differ from a developer checkout.
   The app must read the real paths out of launchd rather than assuming a repo-relative location.
 - Both streams are **appended to indefinitely** — launchd does not rotate them, and the shell
   script's restart loop does not truncate them. These files grow across the whole event. The app
@@ -1267,14 +1267,16 @@ secondary; the dashboard is the product.
   through `PATH`. The launcher must locate node itself, export `PATH` for the workers Next spawns,
   and invoke Next's JS entry point with the resolved interpreter directly. Verified by running the
   launcher under `env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin"`.
-- **macOS TCC blocks launchd agents from `~/Documents`.** The repo currently lives at
-  `~/Documents/GitHub/Northstar`, and TCC grants file access per executable: Terminal has it, a
-  launchd agent does not and cannot prompt, so `node` gets `EPERM` on files that plainly exist. The
-  Python instances are unaffected only because `python3` was granted at some point — a grant an OS
-  update can reset, which makes this a latent risk for the vision pipelines too, not just this app.
-  **Moving the repo out of `~/Documents` is the durable fix**; granting Full Disk Access to the node
-  binary is the quick one. `webapp/deploy/check-env.sh` distinguishes TCC from ordinary permission,
-  ACL and quarantine problems.
+- **macOS TCC blocks launchd agents from `~/Documents`** — resolved by moving the deployment to
+  `~/Northstar`. TCC grants file access per executable: Terminal has it, a launchd agent does not and
+  cannot prompt, so `node` got `EPERM` on files that plainly existed. The Python instances were
+  unaffected only because `python3` had been granted at some point — a grant an OS update can reset,
+  which made this a latent risk for the vision pipelines too, not just this app. Moving out of
+  `~/Documents` removes the whole class of failure. `webapp/deploy/check-env.sh` distinguishes TCC
+  from ordinary permission, ACL and quarantine problems.
+- **Shell launchers derive their own paths** from `dirname "$0"` rather than hardcoding a repo
+  location, so a future move needs no script edits — only the plists, which launchd requires to carry
+  absolute paths.
 - **`next start` requires a prior `next build`.** If `.next/` is missing, stale, or was corrupted by
   a power cut mid-build, the app silently fails to start and nobody notices until they need it.
   Never build on the robot right before an event; build, verify, and then power-cycle the Mac mini
