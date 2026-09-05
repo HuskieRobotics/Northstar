@@ -96,6 +96,38 @@ the app silently fails to start and nobody notices until they need it. **Build o
 power-cycle the Mac mini once** to confirm it comes back unattended. Add that to the pre-event
 checklist.
 
+### launchd does not have your PATH
+
+This is the first thing that bites, and the error messages point in the wrong direction.
+
+launchd never runs your login shell, so `~/.zshrc` and `~/.zprofile` are not sourced and `PATH` is
+only `/usr/bin:/bin:/usr/sbin:/sbin`. Node installs to `/usr/local/bin` (official installer) or
+`/opt/homebrew/bin` (Homebrew) — neither is on that list. You get, in order:
+
+```
+npx: command not found                  <- npx is not on PATH
+env: node: No such file or directory    <- npx's #!/usr/bin/env node shebang
+```
+
+The second error appears **even after hardcoding the full path to npx**, because the shebang still
+resolves `node` through `PATH`. That is why fixing the first error does not fix the second.
+
+`deploy/webapp.sh` handles all of this: it searches the usual install locations (plus nvm as a last
+resort), exports `PATH` so the worker processes Next spawns can find node too, and invokes Next's JS
+entry point directly with the resolved interpreter so no shebang has to be resolved at all. If node
+still is not found it logs a specific message naming the problem rather than failing cryptically.
+
+The script also derives its own paths from its location, so it needs no editing between the Mac mini
+and a developer checkout. To reproduce launchd's environment in a terminal before trusting it:
+
+```bash
+env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" USER="$USER" bash deploy/webapp.sh
+```
+
+> **nvm is a poor fit for a robot.** Its node lives under a versioned path that changes on upgrade,
+> and nvm itself is a shell function that only exists in an interactive shell. Prefer a system-wide
+> install — Homebrew or the official pkg — on any machine that must boot unattended.
+
 ## After merging upstream Northstar changes
 
 ```bash

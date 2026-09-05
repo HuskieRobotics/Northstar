@@ -1260,6 +1260,13 @@ secondary; the dashboard is the product.
   whenever the robot is switched on ([§2.8](#28-power-and-boot-behavior)). Follow the existing
   pattern and wrap `next start` in a `while true` shell loop under launchd, so a crash self-heals
   the same way the vision pipelines do.
+- **launchd does not inherit your shell environment.** `PATH` is only
+  `/usr/bin:/bin:/usr/sbin:/sbin`, which excludes both `/usr/local/bin` and `/opt/homebrew/bin`, so
+  `node` and `npx` are not found. The failure is doubly confusing because hardcoding the path to
+  `npx` does not fix it — `npx` has a `#!/usr/bin/env node` shebang that still resolves `node`
+  through `PATH`. The launcher must locate node itself, export `PATH` for the workers Next spawns,
+  and invoke Next's JS entry point with the resolved interpreter directly. Verified by running the
+  launcher under `env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin"`.
 - **`next start` requires a prior `next build`.** If `.next/` is missing, stale, or was corrupted by
   a power cut mid-build, the app silently fails to start and nobody notices until they need it.
   Never build on the robot right before an event; build, verify, and then power-cycle the Mac mini
