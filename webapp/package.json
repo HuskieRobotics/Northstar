@@ -1,0 +1,33 @@
+{
+  "name": "webapp",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "next dev -p 5801",
+    "build": "next build",
+    "start": "next start -p ${PORT:-5800}",
+    "check-coupling": "node scripts/check-coupling.mjs",
+    "dev:sim": "NORTHSTAR_NT_SERVER=127.0.0.1 next dev -p 5801",
+    "start:sim": "NORTHSTAR_NT_SERVER=127.0.0.1 PORT=${PORT:-5802} next start -p ${PORT:-5802}"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.3",
+    "next": "^16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "private": true
+}

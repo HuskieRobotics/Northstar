@@ -1,0 +1,218 @@
+/*
+ * Read across a pit: large indicators, high contrast, and never colour alone —
+ * every state carries a glyph and a label so it survives colourblindness and a
+ * washed-out laptop screen under venue lighting.
+ */
+
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2430;
+  --border: #2b3441;
+  --text: #e6edf3;
+  --muted: #8b98a5;
+  --dim: #6b7684;
+
+  --ok: #3fb950;
+  --warn: #d29922;
+  --fail: #f85149;
+  --starting: #58a6ff;
+  --unknown: #8b98a5;
+  --na: #4a5460;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f8fa;
+    --panel: #ffffff;
+    --panel-2: #f0f3f6;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #59636e;
+    --dim: #818b98;
+    --ok: #1a7f37;
+    --warn: #9a6700;
+    --fail: #cf222e;
+    --starting: #0969da;
+    --unknown: #59636e;
+    --na: #afb8c1;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+a { color: inherit; }
+
+.wrap { max-width: 1500px; margin: 0 auto; padding: 16px 20px 48px; }
+
+/* ---------- header strip ---------- */
+
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+}
+.brand { font-weight: 700; letter-spacing: .3px; margin-right: 6px; }
+.brand span { color: var(--muted); font-weight: 400; }
+.topbar nav { display: flex; gap: 14px; margin-left: auto; }
+.topbar nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.topbar nav a:hover, .topbar nav a.active { color: var(--text); }
+
+.stat { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.stat .k { color: var(--dim); }
+.stat .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---------- cards ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--edge, var(--border));
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  /* Layout must not shift as data updates — a glance should find the same
+     camera in the same place. */
+  min-height: 260px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.card h2 a { text-decoration: none; }
+.card h2 a:hover { text-decoration: underline; }
+.card .device { color: var(--dim); font-size: 12px; font-family: var(--mono); font-weight: 400; }
+
+/* ---------- signal chain ---------- */
+
+.chain { display: flex; flex-wrap: wrap; gap: 6px; }
+.sig {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--c); color: var(--c);
+  border-radius: 999px; padding: 2px 9px 2px 7px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.sig .glyph { font-size: 11px; }
+.sig.first-fail { background: color-mix(in srgb, var(--c) 18%, transparent); }
+.sig[data-state="ok"] { --c: var(--ok); }
+.sig[data-state="warn"] { --c: var(--warn); }
+.sig[data-state="fail"] { --c: var(--fail); }
+.sig[data-state="starting"] { --c: var(--starting); }
+.sig[data-state="unknown"] { --c: var(--unknown); }
+.sig[data-state="n/a"] { --c: var(--na); opacity: .65; }
+
+.detail { color: var(--muted); font-size: 12.5px; min-height: 1.2em; }
+
+/* ---------- vitals ---------- */
+
+.vitals {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  gap: 6px 10px; font-size: 12px;
+}
+.vitals div { display: flex; flex-direction: column; }
+.vitals .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.vitals .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- thumbnails ---------- */
+
+.thumbs { display: flex; gap: 8px; margin-top: auto; }
+.thumb {
+  position: relative; flex: 1; aspect-ratio: 4/3;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; cursor: pointer; padding: 0;
+}
+.thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.thumb .label {
+  position: absolute; left: 0; bottom: 0; right: 0;
+  background: rgba(0,0,0,.6); color: #fff;
+  font-size: 10px; padding: 2px 5px; text-align: left;
+}
+.thumb .placeholder {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--dim); font-size: 11px; text-align: center; padding: 6px;
+}
+
+/* ---------- live stream indicator ---------- */
+
+.livebar {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0,0,0,.85); display: grid; place-items: center; padding: 24px;
+}
+.livebox { max-width: min(1200px, 95vw); width: 100%; }
+.livebox img { width: 100%; border-radius: 8px; background: #000; }
+.livehead {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  color: #fff; margin-bottom: 10px;
+}
+.livewarn {
+  color: var(--warn); font-size: 12.5px;
+  border: 1px solid var(--warn); border-radius: 6px; padding: 2px 8px;
+}
+
+/* ---------- misc ---------- */
+
+.badge {
+  font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.badge.err { border-color: var(--fail); color: var(--fail); }
+.badge.rec { border-color: var(--fail); color: var(--fail); }
+
+.note { color: var(--warn); font-size: 12px; }
+.stale { opacity: .45; }
+
+button, .btn {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 11px; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+button:hover, .btn:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { border-color: var(--starting); color: var(--starting); }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.scroll { overflow-x: auto; }
+
+pre.log {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; margin: 0; overflow: auto; max-height: 60vh;
+  font-family: var(--mono); font-size: 12px; line-height: 1.45;
+}
+pre.log .l { display: block; white-space: pre-wrap; word-break: break-word; }
+pre.log .fps { color: var(--dim); }
+pre.log .no-frame { color: var(--warn); }
+pre.log .no-calibration { color: var(--warn); }
+pre.log .calibration { color: var(--ok); }
+pre.log .start { color: var(--starting); font-weight: 600; }
+pre.log .recording { color: var(--starting); }
+pre.log .error { color: var(--fail); }
+pre.log .bootline {
+  display: block; color: var(--starting); border-top: 1px dashed var(--starting);
+  margin: 6px 0; padding-top: 4px; font-weight: 600;
+}
+
+h1 { font-size: 20px; margin: 18px 0 6px; }
+h3 { font-size: 14px; margin: 20px 0 6px; color: var(--muted); }
+.sub { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.empty { color: var(--dim); padding: 20px 0; }
