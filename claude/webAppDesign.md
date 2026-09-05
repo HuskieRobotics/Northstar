@@ -454,6 +454,18 @@ The core of the dashboard. A camera is not simply "up" or "down"; it fails in st
 | 7 | **Poses rejected** | Rate of this camera's pose estimates rejected | `RealOutputs/Vision/<loc>/RejectedPoseCount` — cumulative, eligibility-gated. **Absent until the first rejection** |
 | — | **Results freshness** | Cycles since this camera last produced a result | `RealOutputs/Vision/<loc>/CyclesWithNoResults` — **present from the first cycle for every camera**, so this is the signal to lean on when the counters above are absent ([§7.5.2](#752-verification-of-the-counter-changes)) |
 
+**FR-4c — A camera with no tags in view is healthy, not faulty.** Signal 7 reports `idle` when the
+camera is delivering frames but no poses are being produced, and `idle` is excluded from the card's
+overall verdict and from the "N of M healthy" count. On a stationary robot it is routine for most
+cameras to see no AprilTag; counting that as a fault makes the header read "1/4" when nothing is
+wrong, which is the false alarm FR-28 exists to prevent. Rejections only warn when poses are
+*actually being produced and refused*.
+
+**FR-4d — Prefer live evidence over log history.** Signals must check current NT values before
+falling back to log scraping, and log evidence must be time-bounded (last ~12s by printed timestamp).
+A tail holds minutes of history, so testing whether it *contains* `No frame received` keeps a camera
+red long after frames resume.
+
 **FR-5 — Render the chain, not a single verdict.** The first failing link is highlighted, so the
 page reads as "process up, camera up, **no calibration**" rather than a generic red dot.
 
@@ -1403,7 +1415,12 @@ guard against being triggered during a match.
 7. **Multi-host view** — a single page covering both the competition and practice robots' Mac minis.
 8. **Alerting** — push a notification when an instance goes unhealthy rather than requiring someone
    to be watching the page.
-9. **Publish pipeline state from Northstar structurally** — a change to *Northstar*, not this app:
+9. **WhatCable integration on the cameras page.** Report the cabling WhatCable detects, so a camera
+   that is physically present but wired to the wrong port is visible directly rather than inferred
+   from a dead tile. Replaces the OS camera enumeration, which was removed: `system_profiler` output
+   duplicated what the status chain already says and did not answer the question people actually have
+   at the bench, which is "is this plugged in correctly".
+10. **Publish pipeline state from Northstar structurally** — a change to *Northstar*, not this app:
    publish capture health, calibration status, and restart counts to NT instead of only printing
    them. This would delete most of [§11.1](#111-coupling-to-northstar-internals)'s fragile
    string-scraping and make the dashboard robust across upstream merges. Since the fork is ours to

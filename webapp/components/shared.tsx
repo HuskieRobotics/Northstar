@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export type SignalState = "ok" | "warn" | "fail" | "starting" | "unknown" | "n/a";
+export type SignalState =
+  | "ok" | "warn" | "fail" | "starting" | "unknown" | "idle" | "n/a";
 
 /**
  * Never colour alone. Every state carries a glyph so it survives colourblindness
@@ -15,6 +16,7 @@ export const GLYPH: Record<SignalState, string> = {
   fail: "✕",
   starting: "◐",
   unknown: "?",
+  idle: "○",
   "n/a": "–",
 };
 
@@ -56,6 +58,7 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
       {children}
       <nav>
         {link("/", "Dashboard")}
+        {link("/logs", "Logs")}
         {link("/cameras", "Cameras")}
         {link("/videos", "Recordings")}
         {link("/system", "System")}

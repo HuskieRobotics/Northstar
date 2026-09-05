@@ -38,6 +38,7 @@ const EDGE: Record<SignalState, string> = {
   fail: "var(--fail)",
   starting: "var(--starting)",
   unknown: "var(--unknown)",
+  idle: "var(--muted)",
   "n/a": "var(--na)",
 };
 

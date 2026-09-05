@@ -65,13 +65,15 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
+  /* Sized up deliberately: this is read from a laptop screen in a pit, often at
+     arm's length and under poor lighting. */
+  font-size: 17px;
+  line-height: 1.55;
 }
 
 a { color: inherit; }
 
-.wrap { max-width: 1500px; margin: 0 auto; padding: 16px 20px 48px; }
+.wrap { max-width: 1700px; margin: 0 auto; padding: 20px 24px 56px; }
 
 /* ---------- header strip ---------- */
 
@@ -101,7 +103,7 @@ a { color: inherit; }
 .topbar nav a:hover { color: var(--text); }
 .topbar nav a.active { color: var(--text); border-bottom-color: var(--accent); }
 
-.stat { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
+.stat { display: flex; align-items: baseline; gap: 7px; font-size: 15px; }
 .stat .k { color: var(--dim); }
 .stat .v { font-variant-numeric: tabular-nums; font-weight: 600; }
 
@@ -109,7 +111,7 @@ a { color: inherit; }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 14px;
   margin-top: 16px;
 }
@@ -125,10 +127,10 @@ a { color: inherit; }
   min-height: 210px;
   display: flex; flex-direction: column; gap: 10px;
 }
-.card h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.card h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
 .card h2 a { text-decoration: none; }
 .card h2 a:hover { text-decoration: underline; }
-.card .device { color: var(--dim); font-size: 12px; font-family: var(--mono); font-weight: 400; }
+.card .device { color: var(--dim); font-size: 13px; font-family: var(--mono); font-weight: 400; }
 
 /* ---------- signal chain ---------- */
 
@@ -136,28 +138,31 @@ a { color: inherit; }
 .sig {
   display: inline-flex; align-items: center; gap: 5px;
   border: 1px solid var(--c); color: var(--c);
-  border-radius: 999px; padding: 2px 9px 2px 7px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
+  border-radius: 999px; padding: 4px 12px 4px 10px;
+  font-size: 14px; font-weight: 600; white-space: nowrap;
 }
-.sig .glyph { font-size: 11px; }
+.sig .glyph { font-size: 13px; }
 .sig.first-fail { background: color-mix(in srgb, var(--c) 18%, transparent); }
 .sig[data-state="ok"] { --c: var(--ok); }
 .sig[data-state="warn"] { --c: var(--warn); }
 .sig[data-state="fail"] { --c: var(--fail); }
 .sig[data-state="starting"] { --c: var(--starting); }
 .sig[data-state="unknown"] { --c: var(--unknown); }
+/* Working, nothing to report — e.g. no AprilTag in view. Deliberately quiet:
+   it is neither a success worth celebrating nor a fault worth flagging. */
+.sig[data-state="idle"] { --c: var(--muted); opacity: .85; }
 .sig[data-state="n/a"] { --c: var(--na); opacity: .65; }
 
-.detail { color: var(--muted); font-size: 12.5px; min-height: 1.2em; }
+.detail { color: var(--muted); font-size: 14.5px; min-height: 1.2em; }
 
 /* ---------- vitals ---------- */
 
 .vitals {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
-  gap: 6px 10px; font-size: 12px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px 12px; font-size: 15px;
 }
 .vitals div { display: flex; flex-direction: column; }
-.vitals .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.vitals .k { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
 .vitals .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 /* ---------- thumbnails ---------- */
@@ -166,7 +171,7 @@ a { color: inherit; }
 .thumb {
   /* Capped deliberately: the status chain is what people read across a pit, and
      an oversized preview (often an empty placeholder) would crowd it out. */
-  position: relative; flex: 1; aspect-ratio: 16/10; max-height: 132px;
+  position: relative; flex: 1; aspect-ratio: 16/10; max-height: 150px;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
   overflow: hidden; cursor: pointer; padding: 0;
 }
@@ -174,11 +179,11 @@ a { color: inherit; }
 .thumb .label {
   position: absolute; left: 0; bottom: 0; right: 0;
   background: rgba(0,0,0,.6); color: #fff;
-  font-size: 10px; padding: 2px 5px; text-align: left;
+  font-size: 12px; padding: 3px 7px; text-align: left;
 }
 .thumb .placeholder {
   position: absolute; inset: 0; display: grid; place-items: center;
-  color: var(--dim); font-size: 11px; text-align: center; padding: 6px;
+  color: var(--dim); font-size: 13px; text-align: center; padding: 8px;
 }
 
 /* ---------- live stream indicator ---------- */
@@ -201,7 +206,7 @@ a { color: inherit; }
 /* ---------- misc ---------- */
 
 .badge {
-  font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  font-size: 13px; padding: 2px 9px; border-radius: 999px;
   border: 1px solid var(--border); color: var(--muted);
 }
 .badge.err { border-color: var(--fail); color: var(--fail); }
@@ -210,29 +215,33 @@ a { color: inherit; }
   color: #fff; font-weight: 700; letter-spacing: .5px;
 }
 
-.note { color: var(--warn); font-size: 12px; }
+.note { color: var(--warn); font-size: 15px; }
 .stale { opacity: .45; }
 
 button, .btn {
   background: var(--panel-2); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px;
-  padding: 5px 11px; font-size: 13px; cursor: pointer; font-family: inherit;
+  padding: 7px 14px; font-size: 15px; cursor: pointer; font-family: inherit;
 }
 button:hover, .btn:hover { border-color: var(--muted); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button[aria-pressed="true"] { border-color: var(--starting); color: var(--starting); }
 
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+th { color: var(--dim); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .4px; }
 td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 .scroll { overflow-x: auto; }
 
+.tabrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tabrow button { display: inline-flex; align-items: center; gap: 7px; }
+.tabrow .badge { padding: 0 7px; }
+
 pre.log {
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-  padding: 10px; margin: 0; overflow: auto; max-height: 60vh;
-  font-family: var(--mono); font-size: 12px; line-height: 1.45;
+  padding: 12px; margin: 0; overflow: auto; max-height: 65vh;
+  font-family: var(--mono); font-size: 14px; line-height: 1.5;
 }
 pre.log .l { display: block; white-space: pre-wrap; word-break: break-word; }
 pre.log .fps { color: var(--dim); }
@@ -247,10 +256,10 @@ pre.log .bootline {
   margin: 6px 0; padding-top: 4px; font-weight: 600;
 }
 
-h1 { font-size: 20px; margin: 18px 0 6px; letter-spacing: .2px; }
+h1 { font-size: 26px; margin: 18px 0 6px; letter-spacing: .2px; }
 h3 {
-  font-size: 14px; margin: 22px 0 6px; color: var(--muted);
+  font-size: 16px; margin: 22px 0 6px; color: var(--muted);
   border-left: 3px solid var(--accent); padding-left: 8px;
 }
-.sub { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.sub { color: var(--muted); font-size: 15px; margin: 0 0 10px; }
 .empty { color: var(--dim); padding: 20px 0; }

@@ -5,9 +5,15 @@ import * as C from "./contract";
 import * as NT from "./nt";
 import { discoverInstances, Instance } from "./discovery";
 import { ROBOT_LOOP_HZ, STARTUP_GRACE_SECONDS, resolveRepoPath } from "./settings";
-import { readLogTail } from "./logs";
+import { readLogTail, linesWithin } from "./logs";
 
-export type SignalState = "ok" | "warn" | "fail" | "starting" | "unknown" | "n/a";
+/**
+ * `idle` is deliberately distinct from `ok` and from any fault: the camera is
+ * working but has nothing to report. A stationary robot routinely has cameras
+ * with no AprilTag in view, and that must not read as an error.
+ */
+export type SignalState =
+  | "ok" | "warn" | "fail" | "starting" | "unknown" | "idle" | "n/a";
 
 export type Signal = {
   label: string;
@@ -67,6 +73,12 @@ const WINDOW_MS = 15_000;
  */
 const RECEIVING_WINDOW_MS = 3_000;
 
+/** How fresh an FPS publication counts as proof the camera is delivering. */
+const FPS_FRESH_MS = 5_000;
+
+/** How far back log lines are treated as evidence about the present. */
+const LOG_EVIDENCE_SECONDS = 12;
+
 function rate(topic: string): number | null {
   const v = NT.getNumber(topic);
   if (v === undefined) return null;
@@ -111,10 +123,13 @@ function gate(key: string, ok: boolean, okDetail?: string, failDetail?: string):
   return "fail";
 }
 
-const WORST: SignalState[] = ["fail", "warn", "starting", "unknown", "ok", "n/a"];
+const WORST: SignalState[] = ["fail", "warn", "starting", "unknown", "ok"];
 function worstOf(signals: Signal[]): SignalState {
-  for (const s of WORST) if (signals.some((x) => x.state === s)) return s;
-  return "unknown";
+  // `idle` and `n/a` are informational — a camera with no tags in view is
+  // healthy, so neither may drag the card's overall state.
+  const graded = signals.filter((x) => x.state !== "idle" && x.state !== "n/a");
+  for (const s of WORST) if (graded.some((x) => x.state === s)) return s;
+  return graded.length === 0 ? "ok" : "unknown";
 }
 
 async function fileExists(p: string) {
@@ -186,6 +201,10 @@ async function statusFor(inst: Instance): Promise<InstanceStatus> {
     ? await readLogTail(inst.outLog, 120).catch(() => null)
     : null;
   const recent = tail?.lines.join("\n") ?? "";
+  // A tail holds minutes of history, so "does it contain 'No frame received'"
+  // keeps reporting a fault long after the camera recovered. Only the last few
+  // seconds of log are evidence about the present.
+  const recentNow = tail ? linesWithin(tail.lines, LOG_EVIDENCE_SECONDS).join("\n") : "";
 
   // --- 4. NT connected (computed first: signal 1 depends on it) ------------
   //
@@ -225,27 +244,36 @@ async function statusFor(inst: Instance): Promise<InstanceStatus> {
   signals.push({ label: "Process", state: processState, detail: processDetail });
 
   // --- 2. Camera delivering frames ----------------------------------------
+  //
+  // Order matters: check LIVE evidence that the camera is working before any log
+  // evidence that it was not. Otherwise a stale "No frame received" line keeps
+  // the tile red for as long as it stays in the tail, well after frames resume.
+  //
   let cameraState: SignalState = "unknown";
   let cameraDetail: string | undefined;
+  const fpsFresh = deviceId
+    ? (NT.ageMs(C.nsOutput(deviceId, "fps_apriltags")) ?? Infinity) < FPS_FRESH_MS ||
+      (NT.ageMs(C.nsOutput(deviceId, "fps_objdetect")) ?? Infinity) < FPS_FRESH_MS
+    : false;
+  const receiving =
+    loc && NT.trueWithin(C.visionInput(loc, C.VISION_RECEIVING_FRAMES), RECEIVING_WINDOW_MS) === true;
+
   if (!running) {
     cameraState = processState === "ok" ? "unknown" : processState === "fail" ? "fail" : "starting";
-  } else if (recent.includes(C.LOG_NO_FRAME)) {
-    cameraState = "fail";
-    cameraDetail = "no frames from camera";
-  } else if (recent.includes(C.LOG_WAITING_CAMERA_ID)) {
-    cameraState = "starting";
-    cameraDetail = "waiting for camera id from robot code";
-  } else if (
-    loc &&
-    NT.trueWithin(C.visionInput(loc, C.VISION_RECEIVING_FRAMES), RECEIVING_WINDOW_MS) === true
-  ) {
+  } else if (receiving) {
     cameraState = "ok";
     cameraDetail = "robot receiving frames";
     established.mark(`${inst.key}:camera`);
-  } else if (deviceId && NT.getNumber(C.nsOutput(deviceId, "fps_apriltags")) !== undefined) {
+  } else if (fpsFresh) {
     cameraState = "ok";
-    cameraDetail = "publishing fps";
+    cameraDetail = "publishing frames";
     established.mark(`${inst.key}:camera`);
+  } else if (recentNow.includes(C.LOG_NO_FRAME)) {
+    cameraState = "fail";
+    cameraDetail = "no frames from camera";
+  } else if (recentNow.includes(C.LOG_WAITING_CAMERA_ID)) {
+    cameraState = "starting";
+    cameraDetail = "waiting for camera id from robot code";
   } else {
     cameraState = established.has(`${inst.key}:camera`) ? "fail" : withinGrace() ? "starting" : "unknown";
   }
@@ -342,19 +370,21 @@ async function statusFor(inst: Instance): Promise<InstanceStatus> {
     vitals.staleSeconds = cycles !== undefined ? cycles / ROBOT_LOOP_HZ : undefined;
 
     const hasCounters = NT.getNumber(accTopic) !== undefined || NT.getNumber(rejTopic) !== undefined;
+    const cameraWorking = cameraState === "ok";
     let poseState: SignalState;
     let poseDetail: string;
-    if (!hasCounters) {
-      // Not an error: nothing has been accepted or rejected yet.
-      poseState = cycles !== undefined && cycles > ROBOT_LOOP_HZ * 5 ? "warn" : "starting";
-      poseDetail =
-        cycles !== undefined
-          ? `no results for ${fmtDuration(Math.round(cycles / ROBOT_LOOP_HZ))}`
-          : "none yet";
+
+    if (!hasCounters || (acc === null && rej === null) || (acc === 0 && rej === 0)) {
+      // No poses at all. If the camera is otherwise healthy this simply means no
+      // AprilTag is in view — routine on a stationary robot, and NOT a fault.
+      // Only treat it as a problem when the camera is not working either.
+      poseState = cameraWorking ? "idle" : withinGrace() ? "starting" : "unknown";
+      poseDetail = cameraWorking ? "no tags in view" : "no poses yet";
     } else if (vitals.acceptPct === null) {
       poseState = "unknown";
       poseDetail = "measuring…";
     } else {
+      // Seeing tags but having them rejected IS worth flagging.
       poseState = vitals.acceptPct >= 50 ? "ok" : vitals.acceptPct > 0 ? "warn" : "fail";
       poseDetail = `${vitals.acceptPct.toFixed(0)}% accepted`;
     }

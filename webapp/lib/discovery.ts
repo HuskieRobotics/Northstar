@@ -96,11 +96,24 @@ async function launchdDetail(label: string) {
   return detail;
 }
 
+/**
+ * Strip shell punctuation from a captured argument.
+ *
+ * The launcher scripts terminate statements with a semicolon:
+ *
+ *     python3 __init__.py --config cameras/robots/competition/configBCH.json;
+ *
+ * so a naive \S+ capture keeps the `;`. That yields a path that cannot be read
+ * and a phantom instance keyed "configBCH.json;" alongside the real one.
+ */
+const cleanArg = (p: string) => p.replace(/^['"`]+/, "").replace(/['"`;,)&|]+$/, "");
+
 /** Extract `--config <path>` from a shell wrapper script. */
 async function configFromScript(scriptPath: string): Promise<string | undefined> {
   try {
     const body = await fs.readFile(scriptPath, "utf8");
-    return body.match(/--config\s+(\S+)/)?.[1];
+    const raw = body.match(/--config\s+(\S+)/)?.[1];
+    return raw ? cleanArg(raw) : undefined;
   } catch {
     return undefined;
   }
@@ -142,7 +155,8 @@ async function pythonProcesses(): Promise<PyProc[]> {
     if (!m) continue;
     const [, pid, ppid, etime, cmd] = m;
     if (!/__init__\.py/.test(cmd)) continue;
-    const cfg = cmd.match(/--config\s+(\S+)/)?.[1];
+    const rawCfg = cmd.match(/--config\s+(\S+)/)?.[1];
+    const cfg = rawCfg ? cleanArg(rawCfg) : undefined;
     if (!cfg) continue;
     const elapsedSec = parseEtime(etime);
     procs.push({

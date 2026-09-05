@@ -61,16 +61,6 @@ export async function systemHealth() {
       };
     }
   }
-  // Robot-side thermal per camera, which is a readable string rather than the
-  // 0-3 integer Northstar publishes.
-  const thermals: Record<string, string> = {};
-  for (const inst of instances) {
-    const loc = inst.config?.device_id ? C.cameraLocationFor(inst.config.device_id) : null;
-    if (!loc) continue;
-    const t = NT.getValue<string>(C.visionInput(loc, C.VISION_THERMAL));
-    if (t) thermals[loc] = t;
-  }
-
   return {
     hostname: os.hostname(),
     platform: `${os.type()} ${os.release()}`,
@@ -87,7 +77,6 @@ export async function systemHealth() {
     },
     processes: procs,
     power,
-    thermals,
   };
 }
 
@@ -175,6 +164,9 @@ export async function listCalibrations() {
       deviceId,
       cameraId,
       expectedFile,
+      // The power-metrics instance runs no camera, so it has no calibration to
+      // report and should not appear on the cameras page at all.
+      isCamera: !!i.config && (i.config.apriltags_enable || i.config.objdetect_enable),
       present: expectedFile ? files.some((f) => f.file === expectedFile) : null,
     };
   });

@@ -113,3 +113,25 @@ export function currentBootIndex(lines: string[]): number | null {
   }
   return null;
 }
+
+/**
+ * Lines newer than `seconds` ago, by their printed timestamp.
+ *
+ * Log tails hold minutes of history, so asking "does the tail contain
+ * 'No frame received'" keeps reporting a fault long after the camera recovered.
+ * Bound the question in time instead. Both clocks are this machine's, so the
+ * comparison is safe — unlike comparing against roboRIO timestamps.
+ */
+export function linesWithin(lines: string[], seconds: number): string[] {
+  const cutoff = Date.now() - seconds * 1000;
+  const out: string[] = [];
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i].match(C.LOG_TIMESTAMP);
+    if (m) {
+      const t = Date.parse(m[1].replace(" ", "T"));
+      if (!Number.isNaN(t) && t < cutoff) break;
+    }
+    out.unshift(lines[i]);
+  }
+  return out;
+}

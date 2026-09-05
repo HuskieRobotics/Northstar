@@ -92,24 +92,6 @@ export default function SystemPage() {
               <p className="sub">No power metrics — the power instance is not running or NT is down.</p>
             )}
 
-            {Object.keys(sys.thermals ?? {}).length > 0 && (
-              <>
-                <h3>Per-camera thermal (robot-side)</h3>
-                <div className="scroll">
-                  <table>
-                    <tbody>
-                      {Object.entries(sys.thermals).map(([k, v]) => (
-                        <tr key={k}>
-                          <th>{k}</th>
-                          <td className="num">{String(v)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
             <h3>Northstar processes</h3>
             <div className="scroll">
               <table>

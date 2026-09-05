@@ -41,7 +41,7 @@ export default function CamerasPage() {
               </tr>
             </thead>
             <tbody>
-              {cal?.perInstance?.map((p: any) => (
+              {cal?.perInstance?.filter((p: any) => p.isCamera).map((p: any) => (
                 <tr key={p.key}>
                   <td>{p.key}</td>
                   <td className="num">{p.cameraId ?? "—"}</td>
@@ -93,43 +93,13 @@ export default function CamerasPage() {
           </table>
         </div>
 
-        <h3>Cameras the OS can see</h3>
-        <div className="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Serial</th>
-                <th>Location ID</th>
-                <th>Kind</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.cameras?.map((c: any, i: number) => (
-                <tr key={i}>
-                  <td>{c.name}</td>
-                  <td className="num">{c.serial ?? "—"}</td>
-                  <td className="num">{c.locationId ?? "—"}</td>
-                  <td>{c.kind}</td>
-                </tr>
-              ))}
-              {data?.cameras?.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="empty">
-                    No cameras enumerated. Basler devices may need the pylon tooling to appear here.
-                  </td>
-                </tr>
-              )}
-              {!data && (
-                <tr>
-                  <td colSpan={4} className="sub">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <h3>Cabling</h3>
+        <p className="sub">
+          Not yet implemented. The intent is to integrate with WhatCable and report the cabling it
+          detects, so a camera that is present but wired wrong is visible here rather than inferred
+          from a dead tile.
+        </p>
+
       </div>
     </>
   );

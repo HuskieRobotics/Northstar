@@ -46,13 +46,31 @@ for p in ~/Library/LaunchAgents/org.team3061.northstar.*.plist; do
 done
 ```
 
-The Python virtualenv is referenced as `./venv` relative to the repo root, so it moves with the repo
-and needs no rebuild. If it was created with absolute paths and misbehaves, recreate it:
+### The virtualenv
+
+It is referenced as `./venv` relative to the repo root, so it moves with the repo and normally needs
+no rebuild. If you do recreate it, **name the interpreter explicitly**:
 
 ```bash
-cd ~/Northstar && rm -rf venv && python3 -m venv venv \
-  && source venv/bin/activate && pip install -r requirements.txt
+cd ~/Northstar
+rm -rf venv
+/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 -m venv venv
+source venv/bin/activate
+python -V                        # must print 3.12.x
+pip install -r requirements.txt
 ```
+
+> **Do not use bare `python3`.** On this machine Homebrew has put Python **3.14** first on `PATH`,
+> and `python3 -m venv venv` fails with
+> `Command '.../venv/bin/python3.14' -m ensurepip ... returned non-zero exit status 1`.
+>
+> Even if it succeeded it would be the wrong interpreter: this project needs **3.12.10**, the newest
+> version Core ML Tools 8.1 supports, and every pin in `requirements.txt` — `coremltools==8.1`,
+> `pyntcore==2025.1.1.0`, `pypylon==26.1.0` — is a 3.12-era wheel with no 3.14 build.
+>
+> The vision launchers are unaffected by the Homebrew Python, because `source ./venv/bin/activate`
+> puts `venv/bin` ahead of everything else on `PATH`. The exposure is only when creating the venv or
+> running Python outside it.
 
 ## Verify
 
