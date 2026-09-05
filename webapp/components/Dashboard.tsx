@@ -203,6 +203,8 @@ function Card({
 
   const v = inst.vitals;
   const acceptPct = v.acceptPct as number | null | undefined;
+  const hasThumbs =
+    inst.streams.apriltag !== undefined || inst.streams.objdetect !== undefined || inst.isCamera;
 
   return (
     <div className="card" style={{ ["--edge" as string]: EDGE[inst.overall] }}>
@@ -227,6 +229,11 @@ function Card({
         ))}
       </div>
 
+      {/* Signals span the full width at the top; below them the text sits left and
+          the snapshot right, so the preview uses space that was otherwise blank
+          either side of it. */}
+      <div className={`cardbody${hasThumbs ? "" : " nothumbs"}`}>
+        <div className="cardmain">
       <div className="detail">{detail?.detail ?? detail?.label ?? ""}</div>
 
       {/* Camera vitals only. The power-metrics instance has no camera, so a grid
@@ -281,8 +288,9 @@ function Card({
           {n}
         </div>
       ))}
+        </div>
 
-      {(inst.isCamera || inst.streams.apriltag !== undefined) && (
+      {hasThumbs && (
       <div className="thumbs">
         {inst.streams.apriltag !== undefined && (
           <Thumb
@@ -313,6 +321,7 @@ function Card({
           )}
       </div>
       )}
+      </div>
     </div>
   );
 }

@@ -124,7 +124,10 @@ a { color: inherit; }
   padding: 12px 14px 14px;
   /* Layout must not shift as data updates — a glance should find the same
      camera in the same place. */
-  min-height: 210px;
+  /* Grid rows already stretch cards to match their tallest neighbour, so this
+     only stops a sparse card (the power instance, with no snapshot) collapsing
+     to nothing. */
+  min-height: 150px;
   display: flex; flex-direction: column; gap: 10px;
 }
 .card h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
@@ -167,11 +170,22 @@ a { color: inherit; }
 
 /* ---------- thumbnails ---------- */
 
-.thumbs { display: flex; gap: 8px; margin-top: auto; }
+/* Text left, snapshot right. The preview previously sat in a full-width row
+   below everything, leaving dead space either side of it. */
+.cardbody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 44%);
+  gap: 14px; align-items: start;
+  flex: 1;
+}
+.cardbody.nothumbs { grid-template-columns: 1fr; flex: 0; }
+.cardmain { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* Stacked, not side by side: in a narrow right-hand column two previews beside
+   each other would each be too small to read. */
+.thumbs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .thumb {
-  /* Capped deliberately: the status chain is what people read across a pit, and
-     an oversized preview (often an empty placeholder) would crowd it out. */
-  position: relative; flex: 1; aspect-ratio: 16/10; max-height: 150px;
+  position: relative; width: 100%; aspect-ratio: 16/10;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
   overflow: hidden; cursor: pointer; padding: 0;
 }
