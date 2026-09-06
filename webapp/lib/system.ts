@@ -80,54 +80,6 @@ export async function systemHealth() {
   };
 }
 
-export async function cameraInventory() {
-  const [pylon, usb] = await Promise.all([
-    run("system_profiler SPCameraDataType 2>/dev/null"),
-    run("system_profiler SPUSBDataType 2>/dev/null"),
-  ]);
-
-  const cameras: { name: string; serial?: string; locationId?: string; kind: string }[] = [];
-
-  // AVFoundation / built-in cameras
-  for (const block of pylon.split(/\n(?=\s{4}\S)/)) {
-    const name = block.match(/^\s{4}(.+):$/m)?.[1];
-    if (!name || name === "Camera") continue;
-    cameras.push({
-      name: name.trim(),
-      serial: block.match(/Unique ID:\s*(.+)/)?.[1]?.trim(),
-      kind: "camera",
-    });
-  }
-
-  // USB devices that look like cameras
-  const blocks = usb.split(/\n(?=\s+\S.*:\s*$)/);
-  for (const b of blocks) {
-    const name = b.match(/^\s*(.+):\s*$/m)?.[1]?.trim();
-    if (!name) continue;
-    if (!/cam|imag|basler|arducam|ov\d{4}/i.test(name)) continue;
-    cameras.push({
-      name,
-      serial: b.match(/Serial Number:\s*(.+)/)?.[1]?.trim(),
-      locationId: b.match(/Location ID:\s*(\S+)/)?.[1]?.trim(),
-      kind: "usb",
-    });
-  }
-
-  // Which camera ids do the instances expect?
-  const instances = await discoverInstances();
-  const expected = instances
-    .map((i) => ({
-      key: i.key,
-      deviceId: i.config?.device_id,
-      cameraId: i.config?.device_id
-        ? NT.getValue<string>(C.nsConfig(i.config.device_id, "camera_id"))
-        : undefined,
-    }))
-    .filter((e) => e.deviceId);
-
-  return { cameras, expected };
-}
-
 export async function listCalibrations() {
   const instances = await discoverInstances();
   const folders = new Set<string>();
