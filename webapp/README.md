@@ -78,6 +78,13 @@ All optional; defaults suit the Mac mini.
 | `NORTHSTAR_SNAPSHOT_INTERVAL` | `2500` | Thumbnail refresh, ms |
 | `NORTHSTAR_LOOP_HZ` | `50` | Robot loop rate, for converting `CyclesWithNoResults` to seconds |
 | `NORTHSTAR_EXPECTED_PROFILE` | *(off)* | **Development only** — see below |
+| `NORTHSTAR_WHATCABLE_BIN` | `whatcable` | Path to the WhatCable CLI |
+| `NORTHSTAR_WHATCABLE_CACHE_MS` | `30000` | Cache for USB link data; `0` disables the integration |
+| `NORTHSTAR_WHATCABLE_PROBE` | *(off)* | `1` enables deep USB probing (off by default — see below) |
+| `NORTHSTAR_FRAMELOSS_WATCH_MS` | `400` | Log poll interval for event-triggered checks; `0` disables |
+| `NORTHSTAR_FRAMELOSS_TRIGGER_GAP_MS` | `3000` | Minimum gap between triggered checks per instance |
+| `NORTHSTAR_WHATCABLE_HISTORY_MS` | `30000` | Link-state sampling interval; `0` disables history |
+| `NORTHSTAR_CORRELATION_WINDOW_MS` | `120000` | How far before an episode a link change counts as preceding it |
 
 > `NORTHSTAR_EXPECTED_PROFILE` scans `cameras/robots/<profile>/config*.json` for the expected
 > instance set. **Never enable it on a robot.** That folder is a superset holding configs for
@@ -173,6 +180,80 @@ has no reason to connect a reworded `print` to a TypeScript dashboard. The check
 sources for every literal the app depends on and exits non-zero when one disappears.
 
 Everything it checks is declared in one place: [`lib/contract.ts`](lib/contract.ts).
+
+## USB link diagnostics (WhatCable)
+
+Northstar sometimes stops receiving frames, kills the instance, re-enumerates the port and retries.
+One candidate cause is the camera quietly negotiating **down from USB 3 to USB 2** — the pipeline
+still reports frames and FPS, so it looks healthy by every other measure while the link has halved.
+
+The cameras page reads `whatcable --json` and joins its devices to Northstar instances by
+**serial number**, which equals Northstar's `camera_id` (verified against a Basler `daA1280-54um`
+reporting `24608715` on both sides). For each camera it shows the negotiated link speed, the port's
+`active` vs `supported` transports, and a verdict. A camera running at USB 2 on a port that supports
+USB 3 is flagged in red on the cameras page **and** as a note on its dashboard card.
+
+Install the CLI:
+
+```bash
+brew install darrylmorley/whatcable/whatcable-cli    # CLI only
+brew install --cask darrylmorley/whatcable/whatcable # CLI + menu bar app
+```
+
+Requires macOS 14+ on Apple Silicon. If it is not installed the section says so and nothing else
+breaks.
+
+> **Why it is cached rather than polled.** The CLI performs USB probing, and probing a bus that is
+> actively streaming camera frames is not obviously free — this app must never be the reason a camera
+> hiccups. It runs at most once per `NORTHSTAR_WHATCABLE_CACHE_MS` (default 30s) with a manual
+> **Re-check now** button, never per request. Set the cache to `0` to disable it entirely, or
+> `NORTHSTAR_WHATCABLE_NO_PROBE=1` to pass `--no-usb-probe`. A single run measured ~0.1s.
+
+### Event-triggered checks
+
+Frame loss can recover in **just over a second**, so a periodic sampler would essentially never
+observe the degraded state — by the time a 30-second tick runs, the link is back and the evidence is
+gone.
+
+So the instance logs are polled sub-second, and the moment `No frame received` appears the USB bus is
+checked **immediately**, forcing a fresh read past the cache (the cached reading predates the event
+and would be exactly the wrong answer). Frames resuming triggers a second check, so a recovery is
+captured too.
+
+Measured latency from log line written to USB checked: **~0.3s** (0.26 / 0.37 / 0.27 over three
+runs). A trigger gap (default 3s per instance) stops a flapping camera from causing a storm of USB
+reads.
+
+Triggered samples are recorded **unconditionally**, unlike periodic ones — "we looked during the
+episode and the link was fine" is just as much evidence as finding it degraded.
+
+> Deep USB probing is **off by default**. Measured on a Basler `daA1280-54um`: with and without
+> `--no-usb-probe`, device speed, `usbVersion` and port transports come back identical. Probing buys
+> nothing this app reads, and these checks fire while a camera is already in trouble — so the
+> cautious default is free. `NORTHSTAR_WHATCABLE_PROBE=1` re-enables it.
+
+### Frame loss vs link state
+
+A live reading says the link is degraded *now*; it cannot say whether degradation **preceded**
+Northstar losing frames. So link state is sampled in the background and appended to
+`logs/cabling-history.jsonl` — **only when it changes**, plus a 10-minute heartbeat, so the file
+stays small and every line means something.
+
+The cameras page then lines each frame-loss episode (a run of `No frame received` in that instance's
+log) up against what the link was doing beforehand, and reports how many episodes were preceded by a
+degraded link.
+
+The wording is deliberately not a verdict. A handful of episodes proves nothing either way — the
+count is there to be looked at, and "none of N episodes had a degraded link beforehand" is written as
+evidence against the theory, not proof.
+
+The history file is disposable: it is bounded to 2 MB, a truncated final line from a power cut is
+skipped on read, and losing it costs nothing but past correlations. That keeps it consistent with the
+no-persistent-state rule — nothing here has to be valid at next boot.
+
+The JSON shape is an external tool's output, not an API — the parser treats missing fields as
+unknown rather than throwing, so a WhatCable update cannot take the dashboard down. Shapes were read
+from v1.4.0.
 
 ## Colour
 

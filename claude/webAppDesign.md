@@ -586,6 +586,71 @@ killed mid-write and the resulting `.mkv` is never finalized. The most recent re
 power cut is therefore suspect by default. Flag recordings that are zero-byte, or whose write appears
 to have been interrupted at power-off, so nobody wastes time wondering why a file won't open.
 
+### 6.10 USB link diagnostics (WhatCable)
+
+**FR-31 — Report per-camera USB link quality.** Northstar periodically stops receiving frames, exits,
+re-enumerates the port and retries; the cause is unconfirmed and ESD is one theory. Another, which
+nothing on this dashboard could previously detect, is the camera **negotiating down from USB 3 to
+USB 2**. The pipeline keeps reporting frames and FPS, so every existing signal stays green while the
+link has halved.
+
+`whatcable --json` exposes exactly this: per port, the transports `supported`, `provisioned` and
+`active`, plus each device's negotiated speed. Its `devices[].serialNumber` equals Northstar's
+`camera_id`, which gives a clean join with no configuration — verified against a Basler
+`daA1280-54um` reporting `24608715` on both sides.
+
+- **Degradation rule:** a device running at USB 2 speed on a port whose `supported` or `provisioned`
+  transports include USB 3. Flagged on the cameras page and as a note on the dashboard card, since a
+  card that looks entirely healthy is precisely the case this is meant to catch.
+- **Also surfaced:** WhatCable's own `dataLink` warning, the port location ID (correlates with
+  [MacMiniPorts.md](../MacMiniPorts.md)), and configured cameras absent from the bus entirely.
+- **Cached, not polled.** The CLI probes the USB bus, and probing a bus that is actively streaming is
+  not obviously free. Default 30s cache with a manual re-check; `0` disables it. A run measured
+  ~0.1s. This app must never be the reason a camera hiccups.
+- **Fails soft.** Not installed, missing fields, or a changed JSON shape all degrade to "unavailable"
+  rather than breaking the page — it is an external tool's output format, not an API.
+
+This replaced the OS camera enumeration, which duplicated what the status chain already said and did
+not answer the question people actually have at the bench.
+
+**FR-32 — Retain link history and correlate it with frame loss.** A live reading cannot answer the
+question that matters: did the link degrade *before* frames stopped? Link state is sampled on a timer
+and appended to `logs/cabling-history.jsonl` on change (plus a heartbeat); frame-loss episodes are
+extracted from runs of `No frame received` in each instance's log; the two are lined up and the page
+reports how many episodes were preceded by a degraded link.
+
+- **Change-only recording** keeps the file small and every line meaningful.
+- **Disposable by design** — bounded to 2 MB, a power-cut-truncated final line is skipped on read,
+  and losing the file costs only past correlations. Consistent with FR-29: nothing here must be
+  valid at next boot.
+- **Reported as a count, not a verdict.** A handful of episodes proves nothing either way, and
+  "none of N episodes had a degraded link beforehand" is phrased as evidence against the theory
+  rather than proof. Verified end to end against a synthetic pair of episodes — one preceded by a
+  USB 2 fallback, one not — which the correlation separated correctly.
+- **Correlation needs history collected *before* an episode**, so it fills in over time rather than
+  being useful immediately. Worth leaving running.
+
+**FR-33 — Check the bus on the event, not on a timer.** Frame loss can recover in just over a second,
+so a 30-second sampler would essentially never observe the degraded state — by the time it ran, the
+link would be back and the evidence gone. Instance logs are therefore polled sub-second, and the
+first `No frame received` line triggers an **immediate** check that forces past the cache (the cached
+reading predates the event, and would be exactly the wrong answer). Frames resuming triggers a second
+check so recovery is captured too.
+
+- **Measured latency, log line to USB checked: ~0.3s** (0.26 / 0.37 / 0.27 over three runs).
+- A per-instance trigger gap (default 3s) stops a flapping camera causing a storm of USB reads.
+- **Triggered samples are recorded unconditionally**, unlike periodic ones — "we looked during the
+  episode and the link was healthy" is evidence too, and the summary now leads with mid-episode
+  checks because they are far stronger than a before-and-after inference.
+- **Deep USB probing is off by default.** Measured on a Basler `daA1280-54um`, `--no-usb-probe`
+  returns identical device speed, `usbVersion` and port transports. Probing buys nothing this app
+  reads, and these checks fire while a camera is already in trouble — so the cautious default costs
+  nothing.
+- **The camera→instance mapping is remembered.** It derives from NT's `camera_id`, and NT goes away
+  routinely (the robot power-cycles; Northstar exits when it loses the connection). Samples taken
+  during an outage would otherwise be unattributable — which is precisely when they matter. The
+  mapping is cached in memory and re-learned from the history file on read.
+
 ### 6.9 Resilience
 
 **FR-26 — Degrade gracefully.** Every data source can be independently unavailable: the roboRIO may
@@ -1415,11 +1480,8 @@ guard against being triggered during a match.
 7. **Multi-host view** — a single page covering both the competition and practice robots' Mac minis.
 8. **Alerting** — push a notification when an instance goes unhealthy rather than requiring someone
    to be watching the page.
-9. **WhatCable integration on the cameras page.** Report the cabling WhatCable detects, so a camera
-   that is physically present but wired to the wrong port is visible directly rather than inferred
-   from a dead tile. Replaces the OS camera enumeration, which was removed: `system_profiler` output
-   duplicated what the status chain already says and did not answer the question people actually have
-   at the bench, which is "is this plugged in correctly".
+9. ~~**WhatCable integration**~~ — **implemented.** See
+   [§6.10](#610-usb-link-diagnostics-whatcable).
 10. **Publish pipeline state from Northstar structurally** — a change to *Northstar*, not this app:
    publish capture health, calibration status, and restart counts to NT instead of only printing
    them. This would delete most of [§11.1](#111-coupling-to-northstar-internals)'s fragile

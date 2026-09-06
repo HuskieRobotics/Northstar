@@ -43,5 +43,39 @@ export const ROBOT_LOOP_HZ = Number(env.NORTHSTAR_LOOP_HZ ?? 50);
 /** Free-space warning threshold for the videos volume, in GB. */
 export const DISK_WARN_GB = Number(env.NORTHSTAR_DISK_WARN_GB ?? 20);
 
+/**
+ * WhatCable, for USB link diagnostics on the cameras page.
+ *
+ * Cached rather than polled hard: the CLI performs USB probing, and probing a
+ * bus that is actively streaming camera frames is not obviously free. Set the
+ * cache to 0 to disable the integration entirely.
+ */
+export const WHATCABLE_BIN = env.NORTHSTAR_WHATCABLE_BIN ?? "whatcable";
+export const WHATCABLE_CACHE_MS = Number(env.NORTHSTAR_WHATCABLE_CACHE_MS ?? 30_000);
+/**
+ * Deep USB probing is OFF by default. Measured on a Basler daA1280-54um: with
+ * and without `--no-usb-probe`, the device speed, usbVersion and port transports
+ * come back identical — everything this app reads. Probing buys us nothing and
+ * this runs on a machine whose cameras are already dropping frames, so the
+ * cautious default is free. Set NORTHSTAR_WHATCABLE_PROBE=1 to re-enable.
+ */
+export const WHATCABLE_NO_PROBE = env.NORTHSTAR_WHATCABLE_PROBE !== "1";
+
+/** How often to poll instance logs for the start/end of a frame-loss episode. */
+export const FRAMELOSS_WATCH_MS = Number(env.NORTHSTAR_FRAMELOSS_WATCH_MS ?? 400);
+
+/** Floor between event-triggered USB checks for one instance. */
+export const FRAMELOSS_TRIGGER_GAP_MS = Number(env.NORTHSTAR_FRAMELOSS_TRIGGER_GAP_MS ?? 3000);
+
+/** How often the link-state sampler runs. 0 disables history collection. */
+export const WHATCABLE_HISTORY_MS = Number(env.NORTHSTAR_WHATCABLE_HISTORY_MS ?? 30_000);
+
+/**
+ * How far back before a frame-loss episode a link change still counts as
+ * "preceding" it. Long enough to catch a fallback that happened a little
+ * earlier, short enough that unrelated changes are not swept in.
+ */
+export const CORRELATION_WINDOW_MS = Number(env.NORTHSTAR_CORRELATION_WINDOW_MS ?? 120_000);
+
 export const resolveRepoPath = (p: string) =>
   path.isAbsolute(p) ? p : path.resolve(REPO_ROOT, p);

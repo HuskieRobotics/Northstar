@@ -6,6 +6,7 @@ import * as NT from "./nt";
 import { discoverInstances, Instance } from "./discovery";
 import { ROBOT_LOOP_HZ, STARTUP_GRACE_SECONDS, resolveRepoPath } from "./settings";
 import { readLogTail, linesWithin } from "./logs";
+import { degradedByInstance } from "./whatcable";
 
 /**
  * `idle` is deliberately distinct from `ok` and from any fault: the camera is
@@ -162,7 +163,16 @@ export async function computeStatus(): Promise<{
 
   // Per-instance work is independent and each reads two log tails, so fan out
   // rather than serializing across six instances.
-  const statuses = await Promise.all(instances.map(statusFor));
+  const [statuses, degraded] = await Promise.all([
+    Promise.all(instances.map(statusFor)),
+    degradedByInstance(),
+  ]);
+  // A camera that has quietly fallen back to USB 2 looks healthy by every other
+  // measure, so surface it on the card rather than only on the cameras page.
+  for (const st of statuses) {
+    const d = degraded.get(st.key);
+    if (d) st.notes.push(d);
+  }
 
   return {
     instances: statuses,
