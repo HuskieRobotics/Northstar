@@ -1,7 +1,9 @@
 # Northstar Web App — Design & Requirements
 
 **Team:** Huskie Robotics, FRC Team 3061
-**Status:** Draft / requirements capture
+**Status:** Implemented — see [`webapp/`](../webapp/) and its
+[README](../webapp/README.md). This document is the design record and the reference for *why* things
+are the way they are; the README is the operating manual.
 **Target host:** the Mac mini that runs Northstar on the robot
 **Describes:** `HuskieRobotics/Northstar` @ `fd8593d` (branch `6328-2026-updates`)
 
@@ -71,14 +73,22 @@ On the competition robot ([cameras/robots/competition/](../cameras/robots/compet
 | Config | `device_id` | Pipeline | AprilTag port | ObjDetect port | Capture impl |
 | --- | --- | --- | --- | --- | --- |
 | `configBR` | `northstar_BR` | AprilTags | 8000 | 8001 | `pylon-cropped` |
-| `configCenter` | `northstar_center` | Object detection | 8002 | 8003 | `pylon-color` |
 | `configBL` | `northstar_BL` | AprilTags | 8004 | 8005 | `pylon-cropped` |
 | `configBCL` | `northstar_BCL` | AprilTags | 8006 | 8007 | `pylon` |
 | `configBCH` | `northstar_BCH` | AprilTags | 8008 | 8009 | `pylon-cropped` |
 | `configPower` | `northstar_power` | Power metrics only | 9000 | 9001 | `pylon` |
+| `configCenter` | `northstar_center` | Object detection | 8002 | 8003 | `pylon-color` |
 
-A separate `practice` profile ([cameras/robots/practice/](../cameras/robots/practice/)) defines a
-smaller set. The web app must not hard-code either list.
+**`configCenter` is present but not deployed.** The centre camera was dropped as a requirement for
+the competition robot, so its plist is not installed. The files are kept on purpose: it is the only
+colour-camera and object-detection configuration we have working end to end, and worth preserving as
+a reference.
+
+That makes it the concrete example of a rule this design depends on: **the config folder is a
+superset of what any robot runs**, so the expected instance set must come from the installed launch
+agents, never from a directory listing (FR-1, FR-4b). A separate `practice` profile
+([cameras/robots/practice/](../cameras/robots/practice/)) defines a smaller set again. The web app
+must not hard-code any of them.
 
 ### 2.2 The launchd → shell → Python chain
 
@@ -338,8 +348,11 @@ Next.js route handlers running in the Node runtime.
   the app parses the `config<X>.json` files directly. This is a small, stable schema, but it is a
   duplicated definition that can drift.
 
-**Documented fallback:** if the Node toolchain or the TypeScript NT client proves troublesome on the
-Mac mini, the fallback is a **Python + FastAPI** app served from the existing `venv`, with a plain
+**Outcome:** Next.js was built and the fallback was never needed — the TypeScript NT client works
+unmodified under bare Node 24 ([§14.3](#143-result)). The fallback is recorded below because the
+reasoning still applies if the Node toolchain ever becomes a burden on the competition machine.
+
+**Documented fallback:** a **Python + FastAPI** app served from the existing `venv`, with a plain
 HTML/CSS/JS front end and no build step. That version could import `config.config` and use
 `pyntcore` directly, and would be editable in place on the robot. The API surface in
 [§8](#8-api-surface) is deliberately framework-agnostic so this swap would not require redesign.
@@ -446,7 +459,7 @@ The core of the dashboard. A camera is not simply "up" or "down"; it fails in st
 | # | Signal | Meaning | Source |
 | --- | --- | --- | --- |
 | 1 | **Process** | The Python process for this instance is alive and not crash-looping | Process scan, plus launchd metadata where available (FR-1, FR-3). **Depends on signal 4** — Northstar exits when NT is down ([§2.9](#29-northstar-depends-on-the-nt-server-being-up)), so read this jointly with NT reachability, not in isolation |
-| 2 | **Camera** | The camera hardware is enumerated and delivering frames to Northstar | Absence of `No frame received` in recent log; presence of the camera in the connected-camera inventory (FR-9). Where no log file exists (FR-4a), falls back to the inventory plus FPS-topic recency |
+| 2 | **Camera** | The camera hardware is delivering frames to Northstar | Live evidence first — `ReceivingFrames` latched, or an FPS publication within 5s — then, only as a fallback, `No frame received` in the **last ~12s** of log (FR-4d) |
 | 3 | **Calibration** | A calibration file exists for the `camera_id` NT currently reports | Filesystem check (FR-8) |
 | 4 | **NT connected** | This Northstar instance is connected to the roboRIO's NT server | `/AdvantageKit/Vision/<loc>/Connected`, falling back to `SystemStats/NTClients/<device_id>@<n>/Connected` — **read the value, not the key's presence** ([§7.3](#73-robot-side-3061-lib-topics)) |
 | 5 | **Sending frames** | The roboRIO is actually receiving observations from this camera | `/AdvantageKit/Vision/<loc>/ReceivingFrames` |
@@ -545,18 +558,19 @@ the file's modification date. Absent is a prominent warning — this is the sile
 **FR-18 — Calibration inventory.** A list of all calibration files on disk with their camera IDs, so
 a mismatch between "camera plugged in" and "calibration on hand" is visible at a glance.
 
-### 6.6 Connected camera inventory
+### 6.6 Connected camera inventory — *superseded*
 
-**FR-19 — Enumerate cameras the OS sees.** Independently of Northstar, list the cameras currently
-visible to the Mac mini — Basler devices via a `pylon` enumeration and USB/AVFoundation devices via
-`system_profiler SPUSBDataType` / `SPCameraDataType` — with serial number, model, and USB location
-ID.
+~~**FR-19 / FR-20** — enumerate cameras the OS sees via `system_profiler`, and cross-reference
+against configured `camera_id` values.~~
 
-**FR-20 — Expected vs. actual.** Cross-reference that inventory against the `camera_id` values the
-instances are configured with, and against the location IDs the `config<X>.sh` scripts reenumerate.
-Flag cameras that are expected but missing, and cameras present but unclaimed. Correlate location
-IDs with the physical port map in [MacMiniPorts.md](../MacMiniPorts.md) so the page can say *which
-port* to go check.
+**Built, then removed.** The `system_profiler` listing duplicated what the status chain already said
+and did not answer the question people actually have at the bench, which is whether a camera is
+*wired correctly*. [§6.10](#610-usb-link-diagnostics-whatcable) replaced it with WhatCable, which
+answers that and more: negotiated link speed, port transports, and expected-but-absent cameras — all
+joined to instances by serial number.
+
+Kept here as a record of a feature that was implemented and deliberately withdrawn, so nobody
+re-adds it.
 
 ### 6.7 System health
 
@@ -585,6 +599,41 @@ deliver; offer download and note the codec.
 killed mid-write and the resulting `.mkv` is never finalized. The most recent recording before any
 power cut is therefore suspect by default. Flag recordings that are zero-byte, or whose write appears
 to have been interrupted at power-off, so nobody wastes time wondering why a file won't open.
+
+### 6.9 Resilience
+
+**FR-26 — Degrade gracefully.** Every data source can be independently unavailable: the roboRIO may
+be off, an instance may be stopped, a stream port may not be listening, `pylon` enumeration may
+fail. Each panel reports its own staleness and error state. **The page must never fail as a whole
+because one source is down**, and it must be obvious which data is live versus stale.
+
+**FR-27 — Show NT connection state.** A persistent indicator of the app's own connection to the
+roboRIO NT server, with the time of last successful update. When NT is down, NT-derived fields are
+visibly greyed rather than showing stale values as if current.
+
+**FR-28 — A distinct "starting up" state.** Because the Mac mini boots before the roboRIO
+([§2.8](#28-power-and-boot-behavior)), a page loaded shortly after power-on legitimately has no NT
+data and possibly no running pipelines. The app compares the **system boot time** against a
+configurable startup grace window (default ~90s) and, within it, renders unestablished signals as
+*starting* — visually distinct from both healthy and failed — alongside a visible "up for 0:24"
+counter.
+
+This is a correctness requirement, not decoration. A dashboard that cries wolf every time the robot
+is switched on trains the team to ignore it, which costs more than having no dashboard at all. The
+grace window applies per signal: a signal that has *ever* been established during this boot and then
+drops is a real failure and must show as failed immediately, regardless of uptime.
+
+**FR-29 — Hold no persistent writable state.** Power can be cut at any instant with no warning. The
+app must keep nothing on disk that it needs to be valid at next boot — no caches requiring
+invalidation, no lock or PID files, no session store, no partially written state. All state is
+in-memory and rebuilt from scratch on start. Read-only operation ([§4](#4-goals-and-non-goals))
+makes this nearly free, and it is another reason to keep it that way.
+
+**FR-30 — Tolerate truncated files.** A hard power cut can leave a log file ending mid-line and a
+`.mkv` without a finalized container. The log tailer must not choke on a partial final line, and the
+recording list must handle zero-byte, truncated, and unfinalized files without erroring.
+
+---
 
 ### 6.10 USB link diagnostics (WhatCable)
 
@@ -650,41 +699,6 @@ check so recovery is captured too.
   routinely (the robot power-cycles; Northstar exits when it loses the connection). Samples taken
   during an outage would otherwise be unattributable — which is precisely when they matter. The
   mapping is cached in memory and re-learned from the history file on read.
-
-### 6.9 Resilience
-
-**FR-26 — Degrade gracefully.** Every data source can be independently unavailable: the roboRIO may
-be off, an instance may be stopped, a stream port may not be listening, `pylon` enumeration may
-fail. Each panel reports its own staleness and error state. **The page must never fail as a whole
-because one source is down**, and it must be obvious which data is live versus stale.
-
-**FR-27 — Show NT connection state.** A persistent indicator of the app's own connection to the
-roboRIO NT server, with the time of last successful update. When NT is down, NT-derived fields are
-visibly greyed rather than showing stale values as if current.
-
-**FR-28 — A distinct "starting up" state.** Because the Mac mini boots before the roboRIO
-([§2.8](#28-power-and-boot-behavior)), a page loaded shortly after power-on legitimately has no NT
-data and possibly no running pipelines. The app compares the **system boot time** against a
-configurable startup grace window (default ~90s) and, within it, renders unestablished signals as
-*starting* — visually distinct from both healthy and failed — alongside a visible "up for 0:24"
-counter.
-
-This is a correctness requirement, not decoration. A dashboard that cries wolf every time the robot
-is switched on trains the team to ignore it, which costs more than having no dashboard at all. The
-grace window applies per signal: a signal that has *ever* been established during this boot and then
-drops is a real failure and must show as failed immediately, regardless of uptime.
-
-**FR-29 — Hold no persistent writable state.** Power can be cut at any instant with no warning. The
-app must keep nothing on disk that it needs to be valid at next boot — no caches requiring
-invalidation, no lock or PID files, no session store, no partially written state. All state is
-in-memory and rebuilt from scratch on start. Read-only operation ([§4](#4-goals-and-non-goals))
-makes this nearly free, and it is another reason to keep it that way.
-
-**FR-30 — Tolerate truncated files.** A hard power cut can leave a log file ending mid-line and a
-`.mkv` without a finalized container. The log tailer must not choke on a partial final line, and the
-recording list must handle zero-byte, truncated, and unfinalized files without erroring.
-
----
 
 ## 7. NetworkTables Integration
 
@@ -1047,6 +1061,49 @@ The `type` enum is itself the warning that both modes occur in normal operation:
 frame, **1078 observations were `MULTI_TAG` and zero were `SINGLE_TAG`.** A dashboard tested only on
 single-tag frames will have silently conflated observations with tags.
 
+### 7.4 Mapping `device_id` to camera location
+
+Northstar's `device_id` is `northstar_<camera location>`; 3061-lib uses the bare camera location with
+no prefix. The app therefore derives one from the other rather than maintaining a mapping table:
+
+```
+camera_location = device_id.removePrefix("northstar_")
+```
+
+The rule is confirmed against the live tree, which contained exactly `BR`, `BL`, `BCL`, and `BCH`:
+
+| Config | Northstar `device_id` | Camera location | `Vision/` entry? | Why |
+| --- | --- | --- | --- | --- |
+| `configBR` | `northstar_BR` | `BR` | yes | |
+| `configBL` | `northstar_BL` | `BL` | yes | |
+| `configBCL` | `northstar_BCL` | `BCL` | yes | |
+| `configBCH` | `northstar_BCH` | `BCH` | yes | |
+| `configCenter` | `northstar_center` | `center` | **no** | Dropped as a requirement for this robot; config retained as a reference ([§2.1](#21-process-topology)) |
+| `configPower` | `northstar_power` | — | **no** | Not a camera at all — a separate process publishing power metrics to `northstar_power` |
+
+**The `Vision/` tree reflects what the robot code is configured for, not what Northstar could
+provide.** A camera absent from the tree is a robot-side configuration choice, not a fault and not a
+missing feature. `northstar_power` is a different kind of thing entirely: a metrics process, so it
+should not be rendered as a camera with a broken status chain.
+
+Consequences for the implementation:
+
+- **An instance with no `Vision/` subtree is a normal state**, not missing data. The UI must say so
+  plainly — "not tracked by robot code" — rather than showing an incomplete status chain.
+- For those instances, `SystemStats/NTClients/<device_id>@<n>/Connected`
+  ([§7.3](#73-robot-side-3061-lib-topics)) still supplies status signal 4, so they are not entirely
+  dark. Use it as the **fallback** where there is no `Vision/` entry, and as corroboration elsewhere.
+- **`northstar_power` should be presented separately** from the camera grid — it has no camera, no
+  streams, and no meaningful status chain. Treat it as a host-metrics source feeding
+  [§6.7](#67-system-health), not as a card in the camera grid.
+- **Casing is preserved and is not uniform** (`BR` vs. `center`), so the derived location must be
+  used verbatim — never normalized.
+
+The app must **tolerate these keys being absent** — if the robot code is an older build or the robot
+is off, those columns show "unknown" and the rest of the dashboard is unaffected.
+
+---
+
 ### 7.5 Logging cost: ask for counters, not poses
 
 Robot-side logging is not free, and the cost is wildly uneven. A `Pose3d` is 56 bytes and these are
@@ -1197,57 +1254,15 @@ The schemas being published is still useful: if a later feature wants real decod
 (`averageAmbiguity` and `reprojectionError` would make a good per-camera quality indicator),
 AdvantageScope's `StructDecoder.ts` can be vendored alongside `NT4.ts` on the same terms.
 
-### 7.4 Mapping `device_id` to camera location
-
-Northstar's `device_id` is `northstar_<camera location>`; 3061-lib uses the bare camera location with
-no prefix. The app therefore derives one from the other rather than maintaining a mapping table:
-
-```
-camera_location = device_id.removePrefix("northstar_")
-```
-
-The rule is confirmed against the live tree, which contained exactly `BR`, `BL`, `BCL`, and `BCH`:
-
-| Config | Northstar `device_id` | Camera location | `Vision/` entry? | Why |
-| --- | --- | --- | --- | --- |
-| `configBR` | `northstar_BR` | `BR` | yes | |
-| `configBL` | `northstar_BL` | `BL` | yes | |
-| `configBCL` | `northstar_BCL` | `BCL` | yes | |
-| `configBCH` | `northstar_BCH` | `BCH` | yes | |
-| `configCenter` | `northstar_center` | `center` | **no** | The robot code does not specify a center camera on this configuration |
-| `configPower` | `northstar_power` | — | **no** | Not a camera at all — a separate process publishing power metrics to `northstar_power` |
-
-**The `Vision/` tree reflects what the robot code is configured for, not what Northstar could
-provide.** A camera absent from the tree is a robot-side configuration choice, not a fault and not a
-missing feature. `northstar_power` is a different kind of thing entirely: a metrics process, so it
-should not be rendered as a camera with a broken status chain.
-
-Consequences for the implementation:
-
-- **An instance with no `Vision/` subtree is a normal state**, not missing data. The UI must say so
-  plainly — "not tracked by robot code" — rather than showing an incomplete status chain.
-- For those instances, `SystemStats/NTClients/<device_id>@<n>/Connected`
-  ([§7.3](#73-robot-side-3061-lib-topics)) still supplies status signal 4, so they are not entirely
-  dark. Use it as the **fallback** where there is no `Vision/` entry, and as corroboration elsewhere.
-- **`northstar_power` should be presented separately** from the camera grid — it has no camera, no
-  streams, and no meaningful status chain. Treat it as a host-metrics source feeding
-  [§6.7](#67-system-health), not as a card in the camera grid.
-- **Casing is preserved and is not uniform** (`BR` vs. `center`), so the derived location must be
-  used verbatim — never normalized.
-
-The app must **tolerate these keys being absent** — if the robot code is an older build or the robot
-is off, those columns show "unknown" and the rest of the dashboard is unaffected.
-
----
-
 ## 8. API Surface
 
-Framework-agnostic, so the FastAPI fallback can implement the same contract.
+Framework-agnostic, so the FastAPI fallback ([§5.1](#51-stack-nextjs)) could implement the same
+contract unchanged.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/instances` | Discovered instances: key, discovery source, config, ports, PIDs, launchd state (when present), resolved log paths (when present) |
-| `GET` | `/api/status` | Composite live status for all instances — the seven-signal chain plus vitals |
+| `GET` | `/api/status` | Composite live status for all instances — the status chain plus vitals |
 | `GET` | `/api/status/stream` | SSE: pushes the above on an interval / on change |
 | `GET` | `/api/logs/{instance}/{out\|err}?lines=N` | Tail N lines from the end of the file |
 | `GET` | `/api/logs/{instance}/{out\|err}/stream` | SSE: follow new lines |
@@ -1255,7 +1270,8 @@ Framework-agnostic, so the FastAPI fallback can implement the same contract.
 | `GET` | `/api/snapshot/{instance}/{apriltag\|objdetect}` | Single JPEG frame; connects, reads one frame, disconnects |
 | `GET` | `/api/stream/{instance}/{apriltag\|objdetect}` | Proxied full-rate MJPEG |
 | `GET` | `/api/calibrations` | Calibration files on disk + per-instance present/absent |
-| `GET` | `/api/cameras` | Cameras the OS currently sees, with port/location correlation |
+| `GET` | `/api/cabling` | USB link state per camera, joined to instances ([§6.10](#610-usb-link-diagnostics-whatcable)). `?refresh=1` forces past the cache |
+| `GET` | `/api/cabling/history` | Link-state history and frame-loss correlation. `?hours=N` |
 | `GET` | `/api/system` | Load, memory, uptime, thermal/power, disk free |
 | `GET` | `/api/videos` | Recordings with parsed metadata |
 | `GET` | `/api/videos/{filename}` | Recording download |
@@ -1277,8 +1293,14 @@ and on a laptop with no code changes:
 | Port | `5800` | [§3](#3-users-and-usage-context). **Use a different port in development** — the robot code binds 5800 locally when running in simulation |
 | Discovery mode | `auto` | `launchd`, `process`, or `auto` (FR-1) |
 | Repo root | derived | Used to resolve relative `calibration_folder` / `video_folder` paths |
-| Expected-instance scan | off | The `cameras/robots/<profile>/` scan from FR-4b |
+| Expected-instance scan | off | The `cameras/robots/<profile>/` scan from FR-4b — **development only** |
 | Startup grace window | 90s | FR-28 |
+| WhatCable binary / cache / probing | `whatcable`, 30s, off | [§6.10](#610-usb-link-diagnostics-whatcable) |
+| Frame-loss watch interval / trigger gap | 400ms, 3s | Event-triggered USB checks |
+| Correlation window | 120s | How far before an episode a link change counts as preceding it |
+
+The exact variable names are in [`webapp/README.md`](../webapp/README.md#settings); this table records
+*what* is configurable and why, not the spelling.
 
 ---
 
@@ -1289,11 +1311,14 @@ and on a laptop with no code changes:
 A card per instance in a responsive grid. Each card carries:
 
 - Instance name and `device_id`, plus a single dominant status color
-- The seven-signal chain as a compact row of labeled indicators, first failure emphasized
-- The camera thumbnail
-- FPS, active `camera_id`, resolution, and recording state
-- Accepted vs. rejected tag pose counts
+- The status chain as a compact row of labeled indicators, first failure emphasized, spanning the
+  full card width
+- Vitals and detail text on the left, camera thumbnail on the right — the preview originally sat in
+  a full-width row below everything, which left dead space either side of it and pushed the chain
+  into a thin strip
+- FPS, accepted/rejected rates and accept %, staleness, active `camera_id`, recording state
 - An error-log badge when new error lines have appeared
+- A note when the camera's USB link has degraded ([§6.10](#610-usb-link-diagnostics-whatcable))
 
 Above the grid: a header strip with NT connection state, Mac mini load/thermal/disk, overall
 "N of M instances healthy," and **time since power-on** — which, given [§2.8](#28-power-and-boot-behavior),
@@ -1310,15 +1335,22 @@ Design constraints, given where this gets used:
 - **Honest staleness.** Anything not currently live is visibly dimmed with an age, never rendered as
   though it were fresh.
 
-### 9.2 Instance detail (`/instance/[label]`)
+### 9.2 Instance detail (`/instance/[instance]`)
 
 Full log viewer (out and error, side by side or tabbed), the expanded video stream, complete NT
 config and output values, calibration detail, and process/launchd detail.
 
 ### 9.3 Supporting pages
 
-`/cameras` (inventory and port map), `/videos` (recordings), `/system` (host health). These are
-secondary; the dashboard is the product.
+- **`/logs`** — instance picker plus stdout/stderr, live-following, with an error-count badge per
+  instance. Added after the fact: the per-instance detail page buried the logs one click deep, and
+  scrolling logs is the second most common reason to open this app.
+- **`/cameras`** — calibration per instance, USB link quality, frame-loss correlation
+  ([§6.10](#610-usb-link-diagnostics-whatcable)).
+- **`/videos`** — recordings with parsed metadata.
+- **`/system`** — Mac mini load, memory, disk, power and thermal.
+
+These are secondary; the dashboard is the product.
 
 ---
 
@@ -1492,40 +1524,41 @@ guard against being triggered during a match.
 
 ## 13. Open Questions
 
-1. ~~**3061-lib NT keys**~~ — **resolved by direct measurement.** Verified against a live 536-topic
-   dump; see [§7.3](#73-robot-side-3061-lib-topics) and
-   [§7.4](#74-mapping-device_id-to-camera-location). Several prior assumptions were wrong and have
-   been corrected. This also surfaced open question 8.
-2. ~~**NT client viability**~~ — **resolved.** AdvantageScope's `NT4.ts` connects, negotiates NT4.1,
-   completes RTT time sync, and delivers prefix subscriptions **unmodified under bare Node 24**
-   ([§14.3](#143-result)).
-3. **Rejection-ratio thresholds** — what accepted-vs-rejected ratio should read as a warning? Needs a
-   number from observed practice-match data rather than a guess.
-4. **Node version** on the competition Mac mini, and whether adding a Node toolchain there is
-   acceptable to whoever maintains that machine.
-5. **Log rotation** — the unbounded `logs/*.log` growth is a pre-existing problem this app makes
-   visible. Worth fixing separately (`newsyslog`, or truncation in the shell wrapper).
-6. **Snapshot cadence** — the default thumbnail refresh interval should be tuned against measured
-   CPU impact on a fully loaded Mac mini, not chosen a priori.
-7. **Startup grace window** (FR-28) — the 90s default is a guess. Measure the real interval from
-   Mac mini power-on to all signals established, across a few cold boots, and set the window from
-   observed data with margin. Too short defeats the purpose; too long hides real failures.
-8. ~~**Per-camera rejected poses**~~ — **resolved.** 3061-lib now logs `RejectedPoseCount` and
-   ungated `CyclesWithNoResults`; both verified live
-   ([§7.5.2](#752-verification-of-the-counter-changes)). FR-6 is satisfied per camera. The optional
-   rejection-reason breakdown ([§7.5.1](#751-recommended-3061-lib-changes) item 3) remains a
-   worthwhile follow-up — it would turn "9% rejected" into "9% rejected, all off-field."
-9. ~~**Multi-tag validation**~~ — **done.** Re-inventoried and re-correlated with two tags in one
-   frame: no new topics appear, but the count semantics differ from what single-tag testing
-   suggested. `RobotPoses*` counts observations, `*AprilTags` counts tags, and the ratio is `numTags`
-   ([§7.3](#73-robot-side-3061-lib-topics)). Struct decoding verified against known tag IDs.
-10. ~~**`ENABLE_EXTRA_LOGGING` gating**~~ — **not an issue.** Every measurement was taken with the
-    flag **off**, so the documented topic set is the competition baseline. Optionally diff against a
-    flag-on capture some time, purely to catalogue bench-only extras and ensure nothing depends on
-    them — low priority, since nothing currently does.
-11. **Port 5800 collides on a development machine.** The robot code's own process was observed
-   listening on 5800 locally, so the web app cannot bind it while the sim is running. Harmless in
-   production (different hosts), but the dev default must differ — see [§8.1](#81-configuration).
+### Still open
+
+1. **Rejection-ratio thresholds.** What accepted-vs-rejected ratio should read as a warning? The app
+   currently warns below 50%, which is a guess. Needs a number from observed practice-match data.
+2. **Startup grace window** (FR-28). The 90s default is a guess. Measure the real interval from
+   Mac mini power-on to all signals established across a few cold boots, then set it from data with
+   margin. Too short defeats the purpose; too long hides real failures.
+3. **Snapshot cadence.** The 2.5s thumbnail refresh should be tuned against measured CPU impact on a
+   fully loaded Mac mini, not chosen a priori.
+4. **Log rotation.** The unbounded `logs/*.log` growth is a pre-existing problem this app makes
+   visible rather than causes. Worth fixing separately (`newsyslog`, or truncation in the shell
+   wrapper).
+5. **Per-camera rejection *reasons*.** `RejectedPoseCount` says how many; it does not say why.
+   Four more counters ([§7.5.1](#751-recommended-3061-lib-changes) item 3) would turn "9% rejected"
+   into "9% rejected, all off-field", which points straight at a camera transform. The most valuable
+   remaining robot-code change.
+6. **Does the USB-2-fallback theory hold?** The instrumentation to answer it is built
+   ([§6.10](#610-usb-link-diagnostics-whatcable)); the data is not in yet. Leave the app running
+   through a practice session and read the correlation table.
+7. **Cold-boot verification.** Nobody has yet power-cycled the Mac mini and confirmed the web app
+   returns unattended. That is the only test that proves the deployment
+   ([§10](#10-deployment)).
+
+### Resolved
+
+| # | Question | Outcome |
+| --- | --- | --- |
+| 1 | 3061-lib NT key paths | Measured against a live 536-topic dump. Several assumptions were wrong; corrected in [§7.3](#73-robot-side-3061-lib-topics) / [§7.4](#74-mapping-device_id-to-camera-location) |
+| 2 | NT client viability | AdvantageScope's `NT4.ts` runs unmodified under bare Node 24 ([§14.3](#143-result)) |
+| 3 | Node version on the Mac mini | Node ≥ 24 required and installed — `WebSocket` needs v22+, `CloseEvent` v23+ |
+| 4 | Per-camera rejected poses | 3061-lib now publishes `RejectedPoseCount` and ungated `CyclesWithNoResults` ([§7.5.2](#752-verification-of-the-counter-changes)) |
+| 5 | Multi-tag validation | Done. `RobotPoses*` counts observations, `*AprilTags` counts tags; the ratio is `numTags` |
+| 6 | `ENABLE_EXTRA_LOGGING` gating | Not an issue — every measurement was taken with the flag **off**, so the documented topics are the competition baseline |
+| 7 | Port 5800 collides in development | The robot sim binds 5800 locally; dev uses 5801, `start:sim` uses 5802 |
+| 8 | WhatCable integration | Built ([§6.10](#610-usb-link-diagnostics-whatcable)), including event-triggered checks and frame-loss correlation |
 
 ---
 

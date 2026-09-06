@@ -75,6 +75,10 @@ pip install -r requirements.txt
 ## Verify
 
 ```bash
+# Optional: USB link diagnostics for the dashboard
+brew install darrylmorley/whatcable/whatcable-cli
+whatcable --json | head -c 120          # should print JSON
+
 # TCC and PATH are both clean now?
 bash ~/Northstar/webapp/deploy/check-env.sh
 env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" USER="$USER" \
