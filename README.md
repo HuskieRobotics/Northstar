@@ -24,7 +24,7 @@ AGPL-3.0 licence, alongside their licence file.
 - [Day-to-day operation](#day-to-day-operation)
 - [Reference](#reference) — ports, cameras, robot configurations
 - [Development notes](#development-notes) — the things that were hard to work out
-- [Calibration](#calibration)
+- [Calibration](#calibration) — the target, the capture strategy, producing the intrinsics
 - [History](#history) — superseded configurations, kept for context
 
 Further reading in this repo:
@@ -467,7 +467,8 @@ calibration silently inherits the error.
 2. A live preview appears on **port 7999** (`http://10.30.61.10:7999/stream.mjpg`). Detected markers
    and interpolated ChArUco corners are drawn on it, so use it to confirm the board is being seen.
 3. Move the board through the frame — varied angles, distances and positions, including the corners
-   of the image where distortion is greatest.
+   of the image where distortion is greatest. See [Capture strategy](#capture-strategy) below for the
+   specific poses to cover.
 4. Frames are saved **automatically, roughly one per second**, to:
 
    ```
@@ -485,6 +486,44 @@ calibration silently inherits the error.
 > **Ending calibration exits the instance.** When `active` goes false, Northstar destroys the capture
 > device and calls `sys.exit(0)`; the `while true` wrapper then restarts it. That is by design, not a
 > crash.
+
+### Capture strategy
+
+Where you put the board matters more than how many frames you collect. The following zone-based plan
+is from a vendor guide ([CalibVision](https://calibvision.com), who sell ChArUco boards) — treat the
+image counts as a sensible starting recipe rather than something we have measured on our cameras.
+
+**Zone-based approach** *(recommended for most applications)*
+
+| Zone | Images | What to do |
+| --- | --- | --- |
+| **Central region** | 4–5 | Board filling **40–70% of the frame**, perpendicular to the camera, at varied depths |
+| **Edge regions** | 8–10 | Board positioned to place corners in **all four quadrants'** peripheral areas, with moderate tilt angles (**30–45°**) |
+| **Extreme angles** | 4–6 | Strong tilt (**45–60°**), board rotated around various axes, partial occlusion intentional |
+| **Close / far range** | 3–4 | Minimum and maximum working distances for your application |
+
+That totals roughly **20–25 usable images**. The edge regions get the largest share deliberately:
+distortion coefficients are determined almost entirely by what happens away from the optical centre,
+and a set shot only head-on in the middle of the frame will look excellent in the solver and be wrong
+everywhere it matters.
+
+**Adapting this to Northstar's auto-capture.** Northstar saves a frame roughly **once per second** for
+as long as `active` is true — there is no per-image trigger. So translate the table into *dwell time*:
+**hold each pose still for 2–3 seconds**, then move to the next one. Two consequences follow:
+
+- **Motion blur is the main risk here**, more so than in a triggered workflow. Blurred frames still get
+  saved and still get fed to the solver. Move between poses deliberately and pause before counting.
+- **Expect to discard frames.** Budget for more wall-clock time than the image counts suggest, and cull
+  the obviously blurred or partially-detected frames before importing into Calib.
+
+Watch the port-7999 preview while you work — it draws detected markers and interpolated corners, so
+you can confirm each pose actually resolved before moving on.
+
+> **Auto exposure/gain is already off.** The guide's advice to disable automatic camera settings during
+> calibration is satisfied by construction: our exposure and gain are fixed values pushed from the
+> roboRIO over NetworkTables, and they stay fixed through a match. See [Future work](#future-work) for
+> the separate idea of using Pylon's auto function profile **once during on-field setup** to choose
+> those fixed values — a one-time measurement, not a running control loop.
 
 ### Step 2 — produce the intrinsics
 
@@ -562,8 +601,16 @@ mention it.
   Minimising exposure time is the right bias for us twice over — shorter exposure means less motion
   blur on a moving robot, *and* it allows higher frame rates.
 
-  Would need care: anything auto-adjusting must stay stable enough not to fight the detector, and the
-  NT-tunable path needs a defined way to hand control over.
+  > **Scope: a one-time measurement, not a running control loop.** The intended use is to let auto
+  > converge **once** during on-field calibration, read the values it settles on, and then write those
+  > back as the fixed exposure and gain — auto off again before the first match. Exposure and gain
+  > must **not** move during a match: brightness changes from lighting, alliance-station LEDs or other
+  > robots would change detection behaviour mid-run, and a pipeline whose parameters drift is one you
+  > cannot reason about from the logs afterwards.
+  >
+  > So the open work is the capture-and-freeze mechanism — how to run auto on demand, read back the
+  > converged values, and hand them to the existing NT-tunable path — not making the runtime adaptive.
+
   ([auto function profile](https://docs.baslerweb.com/gain-auto),
   [auto exposure](https://docs.baslerweb.com/exposure-auto))
 - **Document the Calib Camera Calibration workflow** — see the note in
