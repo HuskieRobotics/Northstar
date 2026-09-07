@@ -48,6 +48,8 @@ class Capture:
             or remote_a.camera_exposure != remote_b.camera_exposure
             or remote_a.camera_gain != remote_b.camera_gain
             or remote_a.camera_denoise != remote_b.camera_denoise
+            or remote_a.camera_balance_red != remote_b.camera_balance_red
+            or remote_a.camera_balance_blue != remote_b.camera_balance_blue
         )
 
 
@@ -189,7 +191,10 @@ class PylonCapture(Capture):
 
         if self._camera is None:
             if self._device == None:
-                device_infos: list[pylon.DeviceInfo] = pylon.TlFactory.GetInstance().EnumerateDevices()
+                tl_factory = pylon.TlFactory.GetInstance()
+                di_filter = pylon.DeviceInfo()
+                di_filter.SetDeviceClass("BaslerUsb")
+                device_infos: list[pylon.DeviceInfo] = tl_factory.EnumerateDevices([di_filter])
                 self._device: Union[None, any] = None  # Native object type
                 print(timeString, "Looking for camera: ", config_store.remote_config.camera_id)
                 for device_info in device_infos:
@@ -216,7 +221,7 @@ class PylonCapture(Capture):
                 self._camera.InternalGrabEngineThreadPriorityOverride = True
                 self._camera.InternalGrabEngineThreadPriority = 95
                 self._camera.GetNodeMap().GetNode("DeviceLinkThroughputLimitMode").SetValue("On")
-                max_bandwidth = int(115e6) if self._mode == "color" else int(115e6)
+                max_bandwidth = int(150e6) if self._mode == "color" else int(160e6)
                 self._camera.GetNodeMap().GetNode("DeviceLinkThroughputLimit").SetValue(max_bandwidth)
                 self._camera.GetNodeMap().GetNode("ExposureAuto").SetValue("Off")
                 self._camera.GetNodeMap().GetNode("AcquisitionMode").SetValue("Continuous")
@@ -237,9 +242,10 @@ class PylonCapture(Capture):
                     # Disable auto white balance
                     self._camera.GetNodeMap().GetNode("BalanceWhiteAuto").SetValue("Off")
                     self._camera.BalanceRatioSelector.SetValue("Red")
-                    self._camera.BalanceRatio.SetValue(1.2)
+                    self._camera.BalanceRatio.SetValue(config_store.remote_config.camera_balance_red)
+
                     self._camera.BalanceRatioSelector.SetValue("Blue")
-                    self._camera.BalanceRatio.SetValue(1.2)
+                    self._camera.BalanceRatio.SetValue(config_store.remote_config.camera_balance_blue)
 
                 elif self._mode == "cropped":
                     fullWidth = self._camera.GetNodeMap().GetNode("Width").GetValue();
@@ -255,9 +261,8 @@ class PylonCapture(Capture):
                         (fullHeight - config_store.remote_config.camera_resolution_height) / 2,
                     )
 
-                if self._is_flipped:
-                    self._camera.GetNodeMap().GetNode("ReverseX").SetValue(True)
-                    self._camera.GetNodeMap().GetNode("ReverseY").SetValue(True)
+                self._camera.GetNodeMap().GetNode("ReverseX").SetValue(self._is_flipped)
+                self._camera.GetNodeMap().GetNode("ReverseY").SetValue(self._is_flipped)
 
                 self._camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                 print(timeString, "Capture session ready")

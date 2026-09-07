@@ -73,15 +73,14 @@ class FFmpegVideoWriter(VideoWriter):
             "pipe:",
             "-c:v",
             "hevc_videotoolbox",
-            "-q:v",
-            "50",
             "-pix_fmt",
             "yuv420p",
             "-vf",
             "setpts=PTS-STARTPTS",
+            "-q:v",
         ]
-        self._ffmpeg = subprocess.Popen(ffmpeg_args_base + [filename], stdin=subprocess.PIPE)
-        self._ffmpeg_raw = subprocess.Popen(ffmpeg_args_base + [filename_raw], stdin=subprocess.PIPE)
+        self._ffmpeg = subprocess.Popen(ffmpeg_args_base + ["50", filename], stdin=subprocess.PIPE)
+        self._ffmpeg_raw = subprocess.Popen(ffmpeg_args_base + ["65", filename_raw], stdin=subprocess.PIPE)
 
         self._running = True
         self._queue = queue.Queue(maxsize=1)

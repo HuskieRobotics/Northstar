@@ -4,6 +4,7 @@
   "apriltags_stream_port": 8002,
   "objdetect_stream_port": 8003,
   "capture_impl": "pylon-color",
+  "apriltag_max_fps": -1,
   "obj_detect_model": "models/wave_fuel_detect.mlpackage",
   "obj_detect_max_fps": -1,
   "apriltags_enable": false,

@@ -28,6 +28,7 @@ class LocalConfig:
     apriltags_stream_port: int = 8000
     objdetect_stream_port: int = 8001
     capture_impl: str = ""
+    apriltag_max_fps: int = -1
     obj_detect_model: str = ""
     obj_detect_max_fps: int = -1
     apriltags_enable: bool = False
@@ -55,10 +56,13 @@ class RemoteConfig:
     camera_exposure: int = 0
     camera_gain: float = 0
     camera_denoise: float = 0
+    camera_balance_red: float = 1
+    camera_balance_blue: float = 1
     fiducial_size_m: float = 0
     tag_layout: any = None
     is_recording: bool = False
     timestamp: int = 0
+    throttle_fps: float = 0.0
 
 
 @dataclass
