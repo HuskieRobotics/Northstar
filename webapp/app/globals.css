@@ -1,0 +1,279 @@
+:root {
+  /* Huskie Robotics 3061 — #FF4800 orange, #002F55 navy, #FFFFFF, #ACA89F taupe.
+     Contrast ratios below are measured against the surface each colour sits on;
+     this page is read across a pit, so every value clears 4.5:1 for text. */
+
+  --navy: #002F55;
+  --orange: #FF4800;
+  --taupe: #ACA89F;
+
+  --bg: #00243F;        /* page: navy, darkened, so cards lift off it */
+  --panel: #002F55;     /* cards: the team navy itself */
+  --panel-2: #0A3E68;
+  --border: #17527F;
+  --border-soft: #0E436E;
+
+  --text: #FFFFFF;      /* 13.66:1 on navy */
+  --muted: #ACA89F;     /* team taupe — 5.76:1 on navy */
+  --dim: #8A8880;
+
+  /* Status. The team orange carries the failure state rather than decorating:
+     a healthy board is calm navy/white/green, and anything orange means look
+     here. Colour is never load-bearing alone — every state also has a glyph. */
+  --ok: #4ADE80;        /* 7.84:1 */
+  --warn: #FFC24B;      /* 8.50:1 */
+  --fail: #FF6A33;      /* 4.79:1 — team orange lightened for small text */
+  --starting: #7CC4F5;  /* 7.20:1 */
+  --unknown: #ACA89F;   /* 5.76:1 */
+  --na: #4E6E8C;
+
+  /* Raw brand orange: borders, rules and the wordmark only (4.02:1 — clears the
+     3:1 needed for non-text, short of the 4.5:1 needed for small text). */
+  --accent: #FF4800;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F2F3F4;
+    --panel: #FFFFFF;
+    --panel-2: #F3F2F0;
+    --border: #D6D3CD;     /* taupe, tinted — borders only */
+    --border-soft: #E6E4E0;
+
+    --text: #002F55;       /* team navy as body text — 13.66:1 on white */
+    --muted: #6E6A62;      /* darkened taupe: #ACA89F is only 2.37:1 on white */
+    --dim: #85817A;
+
+    --ok: #0E7A4D;         /* 5.37:1 */
+    --warn: #8A5A00;       /* 5.93:1 */
+    --fail: #C43B00;       /* 5.29:1 — team orange darkened for white */
+    --starting: #12599E;   /* 7.12:1 */
+    --unknown: #6E6A62;
+    --na: #ACA89F;
+
+    --accent: #D93C00;     /* raw #FF4800 is 3.0:1 on white; darkened for rules */
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Sized up deliberately: this is read from a laptop screen in a pit, often at
+     arm's length and under poor lighting. */
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+a { color: inherit; }
+
+.wrap { max-width: 1700px; margin: 0 auto; padding: 20px 24px 56px; }
+
+/* ---------- header strip ---------- */
+
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--panel);
+  /* The one piece of pure brand orange that is always on screen. */
+  border-bottom: 2px solid var(--accent);
+  padding: 10px 20px;
+  display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+}
+.brand {
+  font-weight: 700; letter-spacing: .3px; margin-right: 6px;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.brand::before {
+  content: ""; width: 10px; height: 10px; border-radius: 2px;
+  background: var(--accent); flex: none;
+}
+.brand span { color: var(--muted); font-weight: 400; }
+
+.topbar nav { display: flex; gap: 16px; margin-left: auto; }
+.topbar nav a {
+  color: var(--muted); text-decoration: none; font-size: 14px;
+  padding-bottom: 2px; border-bottom: 2px solid transparent;
+}
+.topbar nav a:hover { color: var(--text); }
+.topbar nav a.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.stat { display: flex; align-items: baseline; gap: 7px; font-size: 15px; }
+.stat .k { color: var(--dim); }
+.stat .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---------- cards ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--edge, var(--border));
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  /* Layout must not shift as data updates — a glance should find the same
+     camera in the same place. */
+  /* Grid rows already stretch cards to match their tallest neighbour, so this
+     only stops a sparse card (the power instance, with no snapshot) collapsing
+     to nothing. */
+  min-height: 150px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.card h2 a { text-decoration: none; }
+.card h2 a:hover { text-decoration: underline; }
+.card .device { color: var(--dim); font-size: 13px; font-family: var(--mono); font-weight: 400; }
+
+/* ---------- signal chain ---------- */
+
+.chain { display: flex; flex-wrap: wrap; gap: 6px; }
+.sig {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--c); color: var(--c);
+  border-radius: 999px; padding: 4px 12px 4px 10px;
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+}
+.sig .glyph { font-size: 13px; }
+.sig.first-fail { background: color-mix(in srgb, var(--c) 18%, transparent); }
+.sig[data-state="ok"] { --c: var(--ok); }
+.sig[data-state="warn"] { --c: var(--warn); }
+.sig[data-state="fail"] { --c: var(--fail); }
+.sig[data-state="starting"] { --c: var(--starting); }
+.sig[data-state="unknown"] { --c: var(--unknown); }
+/* Working, nothing to report — e.g. no AprilTag in view. Deliberately quiet:
+   it is neither a success worth celebrating nor a fault worth flagging. */
+.sig[data-state="idle"] { --c: var(--muted); opacity: .85; }
+.sig[data-state="n/a"] { --c: var(--na); opacity: .65; }
+
+.detail { color: var(--muted); font-size: 14.5px; min-height: 1.2em; }
+
+/* ---------- vitals ---------- */
+
+.vitals {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px 12px; font-size: 15px;
+}
+.vitals div { display: flex; flex-direction: column; }
+.vitals .k { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+.vitals .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- thumbnails ---------- */
+
+/* Text left, snapshot right. The preview previously sat in a full-width row
+   below everything, leaving dead space either side of it. */
+.cardbody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 44%);
+  gap: 14px; align-items: start;
+  flex: 1;
+}
+.cardbody.nothumbs { grid-template-columns: 1fr; flex: 0; }
+.cardmain { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* Stacked, not side by side: in a narrow right-hand column two previews beside
+   each other would each be too small to read. */
+.thumbs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.thumb {
+  position: relative; width: 100%; aspect-ratio: 16/10;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; cursor: pointer; padding: 0;
+}
+.thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.thumb .label {
+  position: absolute; left: 0; bottom: 0; right: 0;
+  background: rgba(0,0,0,.6); color: #fff;
+  font-size: 12px; padding: 3px 7px; text-align: left;
+}
+.thumb .placeholder {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--dim); font-size: 13px; text-align: center; padding: 8px;
+}
+
+/* ---------- live stream indicator ---------- */
+
+.livebar {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0,0,0,.85); display: grid; place-items: center; padding: 24px;
+}
+.livebox { max-width: min(1200px, 95vw); width: 100%; }
+.livebox img { width: 100%; border-radius: 8px; background: #000; }
+.livehead {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  color: #fff; margin-bottom: 10px;
+}
+.livewarn {
+  color: var(--warn); font-size: 12.5px;
+  border: 1px solid var(--warn); border-radius: 6px; padding: 2px 8px;
+}
+
+/* ---------- misc ---------- */
+
+.badge {
+  font-size: 13px; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.badge.err { border-color: var(--fail); color: var(--fail); }
+.badge.rec {
+  border-color: var(--accent); background: var(--accent);
+  color: #fff; font-weight: 700; letter-spacing: .5px;
+}
+
+.note { color: var(--warn); font-size: 15px; }
+.stale { opacity: .45; }
+
+button, .btn {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 14px; font-size: 15px; cursor: pointer; font-family: inherit;
+}
+button:hover, .btn:hover { border-color: var(--muted); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--starting); color: var(--starting); }
+
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+th { color: var(--dim); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .4px; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.scroll { overflow-x: auto; }
+
+.tabrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tabrow button { display: inline-flex; align-items: center; gap: 7px; }
+.tabrow .badge { padding: 0 7px; }
+
+pre.log {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; margin: 0; overflow: auto; max-height: 65vh;
+  font-family: var(--mono); font-size: 14px; line-height: 1.5;
+}
+pre.log .l { display: block; white-space: pre-wrap; word-break: break-word; }
+pre.log .fps { color: var(--dim); }
+pre.log .no-frame { color: var(--warn); }
+pre.log .no-calibration { color: var(--warn); }
+pre.log .calibration { color: var(--ok); }
+pre.log .start { color: var(--starting); font-weight: 600; }
+pre.log .recording { color: var(--starting); }
+pre.log .error { color: var(--fail); }
+pre.log .bootline {
+  display: block; color: var(--starting); border-top: 1px dashed var(--starting);
+  margin: 6px 0; padding-top: 4px; font-weight: 600;
+}
+
+h1 { font-size: 26px; margin: 18px 0 6px; letter-spacing: .2px; }
+h3 {
+  font-size: 16px; margin: 22px 0 6px; color: var(--muted);
+  border-left: 3px solid var(--accent); padding-left: 8px;
+}
+.sub { color: var(--muted); font-size: 15px; margin: 0 0 10px; }
+.empty { color: var(--dim); padding: 20px 0; }

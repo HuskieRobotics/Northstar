@@ -5,11 +5,11 @@
    <key>Label</key>
    <string>org.team3061.northstar.configCenter</string>
    <key>ProgramArguments</key>
-   <array><string>/Users/nnrobot/Documents/GitHub/Northstar/cameras/robots/competition/configCenter.sh</string></array>
+   <array><string>/Users/nnrobot/Northstar/cameras/robots/competition/configCenter.sh</string></array>
    <key>StandardOutPath</key>
-    <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configCenterOut.log</string>
+    <string>/Users/nnrobot/Northstar/logs/configCenterOut.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/nnrobot/Documents/GitHub/Northstar/logs/configCenterError.log</string>
+    <string>/Users/nnrobot/Northstar/logs/configCenterError.log</string>
    <key>RunAtLoad</key>
    <true/>
 </dict>
