@@ -55,7 +55,9 @@ Three consequences that catch people out:
 - **Northstar exits when it loses NetworkTables.** The wrapper restarts it. One restart per instance
   follows every roboRIO reboot or code redeploy — that is normal, not a fault.
 - **stdout and stderr go to `logs/config<X>Out.log` and `logs/config<X>Error.log`**, appended
-  indefinitely with no rotation.
+  indefinitely with no rotation. **Both are timestamped** — stdout by Python's own prints, stderr by a
+  wrapper in `config*.sh`, because OpenCV, Pylon and tracebacks write bare lines. Since launchd never
+  truncates these files, a line without a date is older than that wrapper and can be ignored.
 
 Each instance publishes to `/{device_id}/output` and reads camera settings from `/{device_id}/config`
 on the roboRIO's NetworkTables server. Full key list in
@@ -425,6 +427,44 @@ System Information reports each camera drawing **4.48 W (896 mA)** and negotiati
 dashboard now reports negotiated link speed per camera continuously and records when it changes, so
 a camera dropping to USB 2 is caught rather than inferred.
 
+### Keeping the error logs readable
+
+`logs/config<X>Error.log` exists to surface faults, and two things worked against that.
+
+**Routine requests were being logged as if they were errors.** Python's `BaseHTTPRequestHandler`
+writes *every* request to stderr, and the dashboard connects and disconnects every few seconds per
+camera to refresh its thumbnails — roughly two lines a second across four cameras, all of them
+`"GET /stream.mjpg" 200`. [`output/StreamServer.py`](output/StreamServer.py) overrides
+`log_request()` to a no-op. Only accepted requests are dropped: `send_error()` logs through
+`log_error()` on a separate path, so 404s and malformed requests are still recorded.
+
+**Nothing on stderr carried a date.** Every `config*.sh` now opens with this before its restart
+loop:
+
+```bash
+exec 3>&2
+exec 2> >(while IFS= read -r line || [ -n "$line" ]; do
+            printf '%s %s\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$line"
+          done >&3)
+```
+
+Python timestamps its own stdout prints, but stderr is written by OpenCV, Pylon and Python
+tracebacks, none of which timestamp anything. launchd appends to these files forever and never
+truncates, so an undated error line is indistinguishable from one written months ago — the exact
+confusion that made a pre-July `calibration.yml` error look like a live fault. It also lets the dashboard's boot divider and "errors in the last N seconds"
+filters work on error logs, which they previously could not.
+
+**Why it looks like that.** macOS ships **bash 3.2**, so `printf '%(%F %T)T'` (bash 4.2+) is out, and
+its `awk` is the one-true-awk with no `strftime`. `moreutils`' `ts` is not installed. A `read` loop
+forking `date` per line is the portable option, and stderr volume is low enough that the cost does
+not matter. `exec 3>&2` captures the real log descriptor first so the timestamper writes to the file
+rather than back into its own pipe. The `|| [ -n "$line" ]` guard keeps a final line that a crash
+left without a trailing newline.
+
+Child processes inherit the redirected fd 2, so Python's stderr is timestamped without Python
+knowing. `npm run check-coupling` fails if any launcher loses the block or changes the date format,
+since [`webapp/lib/contract.ts`](webapp/lib/contract.ts) parses it.
+
 ---
 
 ## Calibration
@@ -623,6 +663,7 @@ mention it.
   rejected; four more counters would say *why* (ambiguity, reprojection error, off-field, rotation),
   turning "9% rejected" into something that points at a cause. See
   [`claude/webAppDesign.md` §7.5.1](claude/webAppDesign.md).
-- **Log rotation.** `logs/*.log` grow without bound across an entire event.
+- **Log rotation.** `logs/*.log` grow without bound across an entire event. Lines are timestamped
+  now, so age is at least *visible*; nothing yet trims the files.
 - **Publish pipeline state to NetworkTables** rather than only printing it, which would remove most
   of the dashboard's dependence on log strings.

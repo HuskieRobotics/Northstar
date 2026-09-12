@@ -38,8 +38,24 @@ export const LOG_RECORDING_STOP = "Stopping recording";
 /** Waiting for the robot code to publish a camera id. */
 export const LOG_WAITING_CAMERA_ID = "Waiting for camera ID to load calibration";
 
-/** Every log line is prefixed with this format, from the same clock we run on. */
+/**
+ * Every log line is prefixed with this format, from the same clock we run on.
+ *
+ * stdout gets it from Python's own prints and the `date` calls in the restart
+ * loop. stderr gets it from the `exec 2> >(...)` timestamper at the top of
+ * cameras/robots/*\/config*.sh — OpenCV, Pylon and tracebacks write bare lines,
+ * and without a timestamp there is no way to tell a live error from one left
+ * over from a previous season, since launchd never truncates these files.
+ */
 export const LOG_TIMESTAMP = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/;
+
+/**
+ * Drop the timestamp prefix so patterns anchored at the start of a line still
+ * match. Removes exactly one following space, preserving the indentation that
+ * distinguishes a traceback's `  File "..."` continuation lines.
+ */
+export const stripTimestamp = (line: string) =>
+  line.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ?/, "");
 
 // ---------------------------------------------------------------------------
 // launchd  (source: cameras/robots/*/org.team3061.northstar.*.plist)

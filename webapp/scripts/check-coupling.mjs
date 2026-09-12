@@ -100,6 +100,21 @@ if (!sample) {
   }
 }
 
+// Every launcher must timestamp its stderr, or currentBootIndex() and
+// linesWithin() silently treat old error lines as current.
+for (const profile of await fs.readdir(robots)) {
+  const dir = path.join(robots, profile);
+  if (!(await fs.stat(dir)).isDirectory()) continue;
+  for (const f of (await fs.readdir(dir)).filter((x) => /^config.*\.sh$/.test(x))) {
+    const body = await fs.readFile(path.join(dir, f), "utf8");
+    if (!body.includes("exec 2> >(")) {
+      fail(`${profile}/${f}: stderr is not timestamped — breaks boot/age filtering of error logs`);
+    } else if (!body.includes("%Y-%m-%d %H:%M:%S")) {
+      fail(`${profile}/${f}: timestamp format changed — breaks LOG_TIMESTAMP`);
+    }
+  }
+}
+
 console.log();
 if (failures > 0) {
   console.error(`${failures} coupling check(s) FAILED.`);
