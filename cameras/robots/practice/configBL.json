@@ -4,10 +4,12 @@
   "apriltags_stream_port": 8006,
   "objdetect_stream_port": 8007,
   "capture_impl": "pylon",
+  "apriltag_max_fps": -1,
   "obj_detect_model": "models/coral_v1_grayscale.mlmodel",
   "obj_detect_max_fps": -1,
   "apriltags_enable": true,
   "objdetect_enable": false,
   "tagangle_enable": false,
+  "powermetrics_enable": false,
   "video_folder": "./videos/"
 }
