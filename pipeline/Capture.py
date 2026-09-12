@@ -17,7 +17,7 @@ import AVFoundation
 import cv2
 import numpy
 from config.config import ConfigStore
-from pypylon import pylon
+from pypylon import genicam, pylon
 
 
 class Capture:
@@ -32,6 +32,11 @@ class Capture:
 
     @classmethod
     def _config_changed(cls, config_a: ConfigStore, config_b: ConfigStore) -> bool:
+        return cls._restart_required_changed(config_a, config_b) or cls._live_tunable_changed(config_a, config_b)
+
+    @classmethod
+    def _restart_required_changed(cls, config_a: ConfigStore, config_b: ConfigStore) -> bool:
+        """Changes that cannot be applied to a capture session already running."""
         if config_a == None and config_b == None:
             return False
         if config_a == None or config_b == None:
@@ -45,7 +50,23 @@ class Capture:
             or remote_a.camera_resolution_width != remote_b.camera_resolution_width
             or remote_a.camera_resolution_height != remote_b.camera_resolution_height
             or remote_a.camera_auto_exposure != remote_b.camera_auto_exposure
-            or remote_a.camera_exposure != remote_b.camera_exposure
+        )
+
+    @classmethod
+    def _live_tunable_changed(cls, config_a: ConfigStore, config_b: ConfigStore) -> bool:
+        """Image-quality values a grabbing camera can accept without reopening.
+
+        These are the ones adjusted interactively during field calibration, so
+        a backend that can apply them in place should do that rather than exit.
+        """
+        if config_a == None or config_b == None:
+            return False
+
+        remote_a = config_a.remote_config
+        remote_b = config_b.remote_config
+
+        return (
+            remote_a.camera_exposure != remote_b.camera_exposure
             or remote_a.camera_gain != remote_b.camera_gain
             or remote_a.camera_denoise != remote_b.camera_denoise
             or remote_a.camera_balance_red != remote_b.camera_balance_red
@@ -183,11 +204,80 @@ class PylonCapture(Capture):
             value = minimum + (value - minimum) // increment * increment
         node.SetValue(value)
 
+    @staticmethod
+    def _set_clamped(node, value: float) -> float:
+        """Set a float node, clamping to the range it reports right now.
+
+        Ranges are not fixed: the usable maximum for gain depends on the
+        current exposure, so a value that was legal a moment ago can be out of
+        range now. SetValue() raises on a violation, and during interactive
+        tuning that would restart the process on the very adjustment the
+        operator is watching. Returns the value actually applied, which is what
+        the log should report -- a request that was clamped did not take effect
+        as asked, and the operator needs to see that from the stream's log.
+        """
+        clamped = min(max(value, node.GetMin()), node.GetMax())
+        node.SetValue(clamped)
+        return clamped
+
+    def _apply_live_config(self, config_store: ConfigStore, timeString: str) -> bool:
+        """Push exposure/gain/denoise/white balance to the camera while it grabs.
+
+        Returns False if the camera will not take a value in place, so the
+        caller can fall back to the restart path rather than run on settings
+        that silently did not apply.
+        """
+        node_map = self._camera.GetNodeMap()
+        remote = config_store.remote_config
+
+        targets = [("ExposureTime", remote.camera_exposure), ("Gain", remote.camera_gain)]
+        if self._mode != "color" and remote.camera_denoise != 0.0:
+            targets.append(("BslNoiseReduction", remote.camera_denoise))
+
+        applied = []
+        try:
+            for name, value in targets:
+                node = node_map.GetNode(name)
+                if node is None or not genicam.IsWritable(node):
+                    print(timeString, "Not writable while grabbing:", name)
+                    return False
+                applied.append((name, value, self._set_clamped(node, value)))
+
+            if self._mode == "color":
+                if not genicam.IsWritable(self._camera.BalanceRatio):
+                    print(timeString, "Not writable while grabbing: BalanceRatio")
+                    return False
+                for selector, value in (("Red", remote.camera_balance_red), ("Blue", remote.camera_balance_blue)):
+                    self._camera.BalanceRatioSelector.SetValue(selector)
+                    applied.append(
+                        ("Balance" + selector, value, self._set_clamped(self._camera.BalanceRatio, value))
+                    )
+        except Exception:
+            print(timeString, "Failed to apply config in place:", traceback.format_exc())
+            return False
+
+        # Report what the camera took, flagging anything the hardware clamped.
+        summary = " ".join(
+            f"{name}={got}" if got == want else f"{name}={got}(requested {want}, clamped)"
+            for name, want, got in applied
+        )
+        print(timeString, "Applied in place -", summary)
+        return True
+
     def get_frame(self, config_store: ConfigStore) -> Tuple[bool, cv2.Mat]:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-        if self._camera != None and self._config_changed(self._last_config, config_store):
-            print(timeString, "Config changed, restarting")
-            sys.exit(0)
+        if self._camera != None:
+            if self._restart_required_changed(self._last_config, config_store):
+                print(timeString, "Config changed, restarting")
+                sys.exit(0)
+            elif self._live_tunable_changed(self._last_config, config_store):
+                # Exposure, gain and denoise are tuned interactively during field
+                # calibration while someone watches the stream. Exiting here would
+                # drop the MJPEG connection and force a browser refresh on every
+                # adjustment, so apply them to the running camera instead.
+                if not self._apply_live_config(config_store, timeString):
+                    print(timeString, "Could not apply in place, restarting")
+                    sys.exit(0)
 
         if self._camera is None:
             if self._device == None:

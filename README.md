@@ -205,6 +205,14 @@ Verify `reenumerate` before trusting it — see [Development notes](#reenumerate
    do not use its *Automatic Image Adjustment* to set operating values — they would be overwritten by
    the values NT publishes.
 
+   **These apply live.** Changing `camera_exposure`, `camera_gain`, `camera_denoise` or the white
+   balance ratios pushes straight to the running camera, so the stream keeps playing and you can
+   watch the effect while you tune at a venue. Changing `camera_id`, the resolution or
+   `camera_auto_exposure` still restarts the instance, because those cannot be applied to a capture
+   session already grabbing. If the camera refuses a value in place, the log says so and the instance
+   restarts as it used to — the settings never silently fail to take. See
+   [Live camera tuning](#live-camera-tuning).
+
 4. Note each camera's serial number — it is the `camera_id` the robot code publishes, and the
    filename of its calibration (`cameras/calibrations/calibration<serial>.yml`).
 
@@ -424,6 +432,42 @@ the most common silent failure — the dashboard has a dedicated indicator for i
 System Information reports each camera drawing **4.48 W (896 mA)** and negotiating **5 Gb/s**. The
 dashboard now reports negotiated link speed per camera continuously and records when it changes, so
 a camera dropping to USB 2 is caught rather than inferred.
+
+### Live camera tuning
+
+`PylonCapture.get_frame()` used to call `sys.exit(0)` on **any** change to `/{device_id}/config`, and
+the `while true` wrapper restarted the process. That is fine for a camera swap, but exposure, gain
+and denoise are tuned interactively at a venue while someone watches the stream — and every
+adjustment tore down the MJPEG server, forcing a browser refresh to see the result of the change you
+just made.
+
+The change predicate is now split in two:
+
+| | Fields | On change |
+| --- | --- | --- |
+| **Restart required** | `camera_id`, `camera_resolution_width/height`, `camera_auto_exposure` | `sys.exit(0)`, as before |
+| **Live tunable** | `camera_exposure`, `camera_gain`, `camera_denoise`, `camera_balance_red/blue` | Written to the open camera; the process keeps running |
+
+Only `PylonCapture` takes the live path. `DefaultCapture` and `GStreamerCapture` still use the
+combined `_config_changed()`, whose result is unchanged — verified field by field against the
+original predicate.
+
+Three things make this safe to run unattended:
+
+- **Writability is checked, not assumed.** `genicam.IsWritable()` is consulted before each node is
+  written. If a node reports that it cannot be set while grabbing, the instance falls back to the old
+  restart rather than running on settings that did not apply.
+- **Values are clamped to the range the camera reports right now.** That range moves — the usable
+  maximum gain depends on the current exposure — so a value that was legal a moment ago can be
+  rejected. The log names anything clamped and what was requested, so a value that appears stuck is
+  explained rather than mysterious.
+- **Any exception falls back to the restart path.** The worst case is the behaviour we had before.
+
+> **Not yet confirmed on hardware.** The routing, the clamping and both fallbacks are covered by a
+> test against a fake node map, but no Basler camera was connected when this was written. What
+> remains to check on a real camera is that `ExposureTime`, `Gain` and `BslNoiseReduction` report as
+> writable while grabbing. If one does not, the log line is `Not writable while grabbing: <node>` and
+> the instance restarts — visibly, not silently.
 
 ---
 
