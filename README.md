@@ -331,6 +331,11 @@ Treat it as a working reference, not dead code. This is also the concrete reason
 a *superset* of what any given robot runs, and why instance discovery must come from the installed
 launch agents rather than from a directory listing.
 
+> **A config nothing runs gets no validation.** `configCenter.json` and both `practice/` configs had
+> drifted and were missing required keys, so they would have raised `KeyError` in
+> [`FileConfigSource.update()`](config/ConfigSource.py) before the camera was even opened. Nobody
+> noticed because no agent loads them. If you revive one of these, load it once before trusting it.
+
 > The authoritative source is always the robot itself: the dashboard's Cameras page shows the live
 > `camera_id` per instance alongside whether its calibration exists. Bench testing with a substitute
 > camera will show a different serial, which is expected and not a discrepancy.
