@@ -10,5 +10,6 @@
   "apriltags_enable": false,
   "objdetect_enable": true,
   "tagangle_enable": false,
+  "powermetrics_enable": false,
   "video_folder": "./videos/"
 }

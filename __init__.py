@@ -185,10 +185,10 @@ if __name__ == "__main__":
                     effective_max_fps = min(throttle_fps, apriltag_max_fps)
                 if effective_max_fps < 0 or (timestamp - apriltags_last_frame_time) >= (1.0 / effective_max_fps):
                     apriltags_last_frame_time = timestamp
-                try:
-                    apriltag_worker_in.put((timestamp, image, config), block=False)
-                except:  # No space in queue
-                    pass
+                    try:
+                        apriltag_worker_in.put((timestamp, image, config), block=False)
+                    except:  # No space in queue
+                        pass
                 try:
                     (
                         timestamp_out,
