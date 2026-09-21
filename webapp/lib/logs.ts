@@ -91,7 +91,9 @@ export function classify(line: string): LineKind {
   if (C.LOG_CALIBRATION_LOADED.test(line)) return "calibration";
   if (line.includes(C.LOG_STARTING)) return "start";
   if (line.includes(C.LOG_RECORDING_START) || line.includes(C.LOG_RECORDING_STOP)) return "recording";
-  if (/^\s*(Traceback|\s+File ")|Error|Exception/.test(line)) return "error";
+  // Anchored patterns must run against the body: stderr lines carry a timestamp
+  // prefix added by the launcher wrapper, stdout lines one printed by Python.
+  if (/^\s*(Traceback|\s+File ")|Error|Exception/.test(C.stripTimestamp(line))) return "error";
   return "plain";
 }
 
