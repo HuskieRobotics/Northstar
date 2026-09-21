@@ -65,6 +65,21 @@ class MjpegServer(StreamServer):
     </html>
             """
 
+            def log_request(self, code="-", size="-") -> None:
+                """Drop the access-log line for requests that succeeded.
+
+                BaseHTTPRequestHandler writes every request to stderr, which
+                launchd captures into logs/config<X>Error.log. The dashboard
+                connects, takes one frame and disconnects for each snapshot, so
+                a successful "GET /stream.mjpg" is by far the most common line
+                in the file that exists to surface real faults.
+
+                Only accepted requests are silenced. Failures still appear:
+                send_error() calls log_error() separately, and log_error() is
+                left alone.
+                """
+                pass
+
             def do_GET(self):
                 global CLIENT_COUNTS
                 if self.path == "/":
@@ -99,7 +114,7 @@ class MjpegServer(StreamServer):
                                 self.wfile.write(frame_data)
                                 self.wfile.write(b"\r\n")
                     except Exception as e:
-                        print("Removed streaming client %s: %s", self.client_address, str(e))
+                        print(f"Removed streaming client {self.client_address}: {e}")
                     finally:
                         CLIENT_COUNTS[uuid] -= 1
                 else:

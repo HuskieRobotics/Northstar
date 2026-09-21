@@ -508,6 +508,14 @@ obtained by connecting to `127.0.0.1:<port>/stream.mjpg`, reading exactly one JP
 encoding. Snapshot cadence is configurable and defaults to roughly one frame every 2–3 seconds, only
 while the tab is visible.
 
+**Consequence: the access log had to be silenced.** One connect-and-disconnect every 2–3 seconds per
+camera is a successful `GET /stream.mjpg` every 2–3 seconds per camera, and
+`BaseHTTPRequestHandler.log_request()` writes each one to **stderr** — which launchd captures into
+`logs/config<X>Error.log`. Across four cameras that is roughly two lines per second in the one file
+that exists to surface faults. [`StreamServer.py`](../output/StreamServer.py) therefore overrides
+`log_request()` to a no-op. Only *accepted* requests are dropped: `send_error()` calls `log_error()`
+on its own path, so 404s and malformed requests are still recorded.
+
 **FR-9 — Proxy, don't link.** All stream traffic is proxied through the Next.js app on port 5800.
 The client never connects to 8000–9001 directly.
 
