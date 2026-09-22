@@ -9,6 +9,7 @@ from typing import List
 import cv2
 from datetime import datetime
 import subprocess
+import sys
 import queue
 import threading
 
@@ -58,6 +59,15 @@ class FFmpegVideoWriter(VideoWriter):
         ffmpeg_args_base = [
             "/opt/homebrew/bin/ffmpeg",
             "-y",
+            # Keep the error log readable: no banner, no stream dumps, and no
+            # per-frame progress lines (they are written with carriage returns,
+            # so they pile up as one enormous line). Only errors reach stderr,
+            # where a reader thread tags them with the output they came from.
+            "-hide_banner",
+            "-nostdin",
+            "-nostats",
+            "-loglevel",
+            "error",
             "-s",
             str(config.remote_config.camera_resolution_width)
             + "x"
@@ -79,14 +89,20 @@ class FFmpegVideoWriter(VideoWriter):
             "setpts=PTS-STARTPTS",
             "-q:v",
         ]
-        self._ffmpeg = subprocess.Popen(ffmpeg_args_base + ["50", filename], stdin=subprocess.PIPE)
-        self._ffmpeg_raw = subprocess.Popen(ffmpeg_args_base + ["65", filename_raw], stdin=subprocess.PIPE)
+        self._ffmpeg = subprocess.Popen(
+            ffmpeg_args_base + ["50", filename], stdin=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        self._ffmpeg_raw = subprocess.Popen(
+            ffmpeg_args_base + ["65", filename_raw], stdin=subprocess.PIPE, stderr=subprocess.PIPE
+        )
 
         self._running = True
+        threading.Thread(target=self._stderr_thread, args=(self._ffmpeg, "overlay"), daemon=True).start()
+        threading.Thread(target=self._stderr_thread, args=(self._ffmpeg_raw, "raw"), daemon=True).start()
         self._queue = queue.Queue(maxsize=1)
         self._queue_raw = queue.Queue(maxsize=1)
         self._thread = threading.Thread(target=self._frame_thread, args=(self._queue, False), daemon=True)
-        self._thread_raw = threading.Thread(target=self._frame_thread, args=(self._queue, True), daemon=True)
+        self._thread_raw = threading.Thread(target=self._frame_thread, args=(self._queue_raw, True), daemon=True)
         self._thread.start()
         self._thread_raw.start()
 
@@ -109,6 +125,13 @@ class FFmpegVideoWriter(VideoWriter):
             self._queue_raw.put((frame, [], []), block=False)
         except:
             pass
+
+    def _stderr_thread(self, ffmpeg: subprocess.Popen, label: str) -> None:
+        """Forward ffmpeg errors to stderr, tagged with which output produced them."""
+        for line in ffmpeg.stderr:
+            text = line.decode(errors="replace").rstrip()
+            if len(text) > 0:
+                print("ffmpeg (" + label + "):", text, file=sys.stderr, flush=True)
 
     def _frame_thread(self, q_in: queue.Queue[cv2.Mat], is_raw: bool) -> None:
         while self._running:
