@@ -44,7 +44,10 @@ class FFmpegVideoWriter(VideoWriter):
             config.local_config.video_folder
             + config.local_config.device_id
             + "_"
-            + datetime.fromtimestamp(config.remote_config.timestamp).strftime("%Y%m%d_%H%M%S")
+            # Use this Mac's clock, not the robot's published timestamp: the
+            # roboRIO's wall clock can be months off (e.g. before a Driver
+            # Station has set it), which misdated recordings.
+            + datetime.now().strftime("%Y%m%d_%H%M%S")
         )
         filename_match = ""
         if len(config.remote_config.event_name) > 0:
