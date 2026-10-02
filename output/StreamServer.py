@@ -9,7 +9,6 @@ import random
 import socketserver
 import string
 import threading
-import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from io import BytesIO
 from typing import Dict
@@ -35,8 +34,14 @@ class StreamServer:
 
 class MjpegServer(StreamServer):
     _frame: cv2.Mat
-    _has_frame: bool = False
+    _frame_seq: int = 0
     _uuid: str = ""
+
+    def __init__(self) -> None:
+        # Guards _frame/_frame_seq and wakes streaming handlers when a new frame
+        # arrives, so each frame is encoded once per client instead of in a
+        # busy loop.
+        self._frame_cond = threading.Condition()
 
     def _make_handler(self_mjpeg, uuid: str):  # type: ignore
         class StreamingHandler(BaseHTTPRequestHandler):
@@ -97,22 +102,34 @@ class MjpegServer(StreamServer):
                     self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
                     self.end_headers()
                     try:
+                        # The vision workers only call set_frame() while a
+                        # client is attached, so whatever is stored now was
+                        # captured before this client connected (possibly long
+                        # before). Start from the current sequence number so
+                        # the first frame sent is one produced after connecting.
+                        with self_mjpeg._frame_cond:
+                            last_seq = self_mjpeg._frame_seq
                         CLIENT_COUNTS[uuid] += 1
                         while True:
-                            if not self_mjpeg._has_frame:
-                                time.sleep(0.1)
-                            else:
-                                pil_im = Image.fromarray(self_mjpeg._frame)
-                                stream = BytesIO()
-                                pil_im.save(stream, format="JPEG")
-                                frame_data = stream.getvalue()
+                            with self_mjpeg._frame_cond:
+                                if not self_mjpeg._frame_cond.wait_for(
+                                    lambda: self_mjpeg._frame_seq > last_seq, timeout=1.0
+                                ):
+                                    continue
+                                frame = self_mjpeg._frame
+                                last_seq = self_mjpeg._frame_seq
 
-                                self.wfile.write(b"--FRAME\r\n")
-                                self.send_header("Content-Type", "image/jpeg")
-                                self.send_header("Content-Length", str(len(frame_data)))
-                                self.end_headers()
-                                self.wfile.write(frame_data)
-                                self.wfile.write(b"\r\n")
+                            pil_im = Image.fromarray(frame)
+                            stream = BytesIO()
+                            pil_im.save(stream, format="JPEG")
+                            frame_data = stream.getvalue()
+
+                            self.wfile.write(b"--FRAME\r\n")
+                            self.send_header("Content-Type", "image/jpeg")
+                            self.send_header("Content-Length", str(len(frame_data)))
+                            self.end_headers()
+                            self.wfile.write(frame_data)
+                            self.wfile.write(b"\r\n")
                     except Exception as e:
                         print(f"Removed streaming client {self.client_address}: {e}")
                     finally:
@@ -137,8 +154,10 @@ class MjpegServer(StreamServer):
         threading.Thread(target=self._run, daemon=True, args=(port,)).start()
 
     def set_frame(self, frame: cv2.Mat) -> None:
-        self._frame = frame
-        self._has_frame = True
+        with self._frame_cond:
+            self._frame = frame
+            self._frame_seq += 1
+            self._frame_cond.notify_all()
 
     def get_client_count(self) -> int:
         if len(self._uuid) > 0:
