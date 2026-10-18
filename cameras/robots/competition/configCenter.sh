@@ -17,6 +17,9 @@ exec 3>&2
 exec 2> >(while IFS= read -r line || [ -n "$line" ]; do
             printf '%s %s\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$line"
           done >&3)
+# Port 1 is now BCH's (see the README's camera assignments). Move this to a
+# free port before installing this instance, or every restart here resets
+# BCH's camera.
 while [ True ];
    do date +'%Y-%m-%d %H:%M:%S'
    "$REPO"/reenumerate/reenumerate -v -l 0x00100000

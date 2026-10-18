@@ -323,7 +323,7 @@ Camera assignments as last recorded:
 | BL | daA1920-160um | 40708556 | 2 (`0x03200000`) |
 | BR | daA1920-160um | 40708542 | 0 (`0x01200000`) |
 | BCL | daA1280-54um | 24608727 | 3 (`0x02220000`) |
-| BCH | daA1920-160um | 40777399 | 4 (`0x02210000`) |
+| BCH | daA1920-160um | 40777399 | 1 (`0x00200000`) |
 
 #### `configCenter` — retained, not deployed
 
@@ -334,6 +334,9 @@ installed and no instance runs. Its files are kept deliberately:
   pipeline we have working end to end.
 - Reconstructing that setup from scratch — capture implementation, model path, stream ports — would
   be avoidable work if object detection is wanted again.
+
+Its launcher still re-enumerates port 1, which BCH now uses. Point `configCenter.sh` at a free port
+before installing it, or each of its restarts resets BCH's camera.
 
 Treat it as a working reference, not dead code. This is also the concrete reason the config folder is
 a *superset* of what any given robot runs, and why instance discovery must come from the installed
