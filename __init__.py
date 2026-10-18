@@ -103,6 +103,7 @@ if __name__ == "__main__":
     was_calibrating = False
     was_recording = False
     no_calibration_last_print = 0
+    last_frame_time = 0
     last_image_observations: List[FiducialImageObservation] = []
     last_objdetect_observations: List[ObjDetectObservation] = []
     video_frame_cache: List[cv2.Mat] = []
@@ -131,27 +132,33 @@ if __name__ == "__main__":
 
 
 
-        # Start and stop recording
+        # Start and stop recording. A dropped frame must not stop the
+        # recording, or every capture hiccup splits the match into a new file.
+        # A frame is only needed to start, to tell whether the video is mono.
         should_record = (
-            success
-            and config.remote_config.is_recording
+            config.remote_config.is_recording
             and config.remote_config.camera_resolution_width > 0
             and config.remote_config.camera_resolution_height > 0
             and config.remote_config.timestamp > 0
         )
-        if should_record and not was_recording:
+        if should_record and not was_recording and success:
             print(timeString, "Starting recording")
             video_writer.start(config, len(image.shape) == 2)
+            was_recording = True
         elif not should_record and was_recording:
             print(timeString, "Stopping recording")
             video_writer.stop()
-        was_recording = should_record
+            was_recording = False
 
-        # Exit if no frame
+        # Exit if no frame. Once frames are flowing, a miss is usually a brief
+        # USB stall (any Basler on the Mac connecting or dropping off pauses all
+        # of them for ~100 ms), so retry quickly instead of giving up a full
+        # second of frames. Keep the slow retry while no camera is delivering.
         if not success:
             print(timeString, "No frame received, waiting for capture")
-            time.sleep(1.0)
+            time.sleep(0.1 if timestamp - last_frame_time < 1.0 else 1.0)
             continue
+        last_frame_time = timestamp
 
         if calibration_command_source.get_calibrating(config):
             # Calibration mode
