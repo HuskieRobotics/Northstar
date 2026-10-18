@@ -280,24 +280,41 @@ class PylonCapture(Capture):
     def _frame_rate_limit(config_store: ConfigStore) -> float:
         """Rate to cap the camera at, or -1 to let it run as fast as it can.
 
-        throttle_fps already limits how often the pipelines run, but the frames
-        they skip still cross USB. Capping the camera itself cuts that traffic.
-        Recordings are encoded at a fixed rate, so while recording the cap never
-        drops below it, or the video would play back faster than real time.
+        The pipelines' max fps settings and throttle_fps already limit how often
+        the pipelines run, but the frames they skip still cross USB. Capping the
+        camera itself cuts that traffic. The camera feeds every enabled
+        pipeline, so it runs as fast as the fastest one needs, and a pipeline
+        with no limit leaves it uncapped unless throttle_fps caps it. Recordings
+        are encoded at a fixed rate, so while recording the cap never drops
+        below it, or the video would play back faster than real time.
         """
+        local = config_store.local_config
         remote = config_store.remote_config
-        if remote.throttle_fps <= 0:
+
+        pipeline_limits = []
+        if local.apriltags_enable:
+            pipeline_limits.append(local.apriltag_max_fps)
+        if local.objdetect_enable:
+            pipeline_limits.append(local.obj_detect_max_fps)
+        if len(pipeline_limits) > 0 and all(limit > 0 for limit in pipeline_limits):
+            fps = max(pipeline_limits)
+        else:
+            fps = -1
+
+        if remote.throttle_fps > 0:
+            fps = remote.throttle_fps if fps < 0 else min(fps, remote.throttle_fps)
+        if fps < 0:
             return -1
         if remote.is_recording:
-            return max(remote.throttle_fps, RECORDING_FRAMERATE)
-        return remote.throttle_fps
+            return max(fps, RECORDING_FRAMERATE)
+        return fps
 
     def _apply_frame_rate(self, fps: float, timeString: str) -> bool:
         """Cap the camera at fps, or remove the cap when fps is negative.
 
         Returns False if the camera will not take the change in place, so the
         caller can fall back to the restart path. A camera without frame rate
-        control is not an error: throttle_fps then only limits the pipelines.
+        control is not an error: the fps limits then only apply to the pipelines.
         """
         node_map = self._camera.GetNodeMap()
         enable = self._find_node(node_map, "AcquisitionFrameRateEnable")
