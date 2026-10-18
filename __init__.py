@@ -26,6 +26,12 @@ from output.VideoWriter import FFmpegVideoWriter, VideoWriter
 from pipeline.Capture import CAPTURE_IMPLS
 from power_metrics import run_power_metrics
 
+# A frame is due once the time since the last one used reaches this fraction of
+# the target interval. A camera capped at the same rate delivers frames about
+# one interval apart, and without some slack every frame that arrives a hair
+# early is skipped, costing about a third of the rate.
+FPS_LIMIT_TOLERANCE = 0.9
+
 if __name__ == "__main__":
     DEBUG = True
 
@@ -183,7 +189,7 @@ if __name__ == "__main__":
                     effective_max_fps = throttle_fps
                 else:
                     effective_max_fps = min(throttle_fps, apriltag_max_fps)
-                if effective_max_fps < 0 or (timestamp - apriltags_last_frame_time) >= (1.0 / effective_max_fps):
+                if effective_max_fps < 0 or (timestamp - apriltags_last_frame_time) >= (FPS_LIMIT_TOLERANCE / effective_max_fps):
                     apriltags_last_frame_time = timestamp
                     try:
                         apriltag_worker_in.put((timestamp, image, config), block=False)
@@ -230,7 +236,7 @@ if __name__ == "__main__":
                     effective_max_fps = throttle_fps
                 else:
                     effective_max_fps = min(throttle_fps, obj_max_fps)
-                if effective_max_fps < 0 or (timestamp - objdetect_last_frame_time) >= (1.0 / effective_max_fps):
+                if effective_max_fps < 0 or (timestamp - objdetect_last_frame_time) >= (FPS_LIMIT_TOLERANCE / effective_max_fps):
                     objdetect_last_frame_time = timestamp
                     try:
                         objdetect_worker_in.put((timestamp, image, config), block=False)
