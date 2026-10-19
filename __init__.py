@@ -114,7 +114,13 @@ if __name__ == "__main__":
         calibration_config_source.update(config)
 
         success, image = capture.get_frame(config)
-        timestamp = time.time()
+        # Use ntcore's clock, not time.time(): ntcore converts published
+        # timestamps to robot time using an offset measured against its own
+        # clock. On macOS that clock is the wall clock at startup advanced by a
+        # monotonic clock, while time.time() is the live wall clock, which the
+        # OS keeps adjusting. The two drift apart for as long as the process
+        # runs, which pushed observation timestamps ahead of the server's time.
+        timestamp = ntcore._now() / 1000000.0
         # get a time string with current date and time with seconds
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
 
