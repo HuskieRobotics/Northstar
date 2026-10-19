@@ -17,6 +17,7 @@ import AVFoundation
 import cv2
 import numpy
 from config.config import ConfigStore
+from output.VideoWriter import FRAMERATE as RECORDING_FRAMERATE
 from pypylon import genicam, pylon
 
 
@@ -264,6 +265,90 @@ class PylonCapture(Capture):
         print(timeString, "Applied in place -", summary)
         return True
 
+    @staticmethod
+    def _find_node(node_map, name: str):
+        """Look up a node, or None if this camera model does not have it.
+
+        GetNode() raises rather than returning None for a missing node.
+        """
+        try:
+            return node_map.GetNode(name)
+        except genicam.LogicalErrorException:
+            return None
+
+    @staticmethod
+    def _frame_rate_limit(config_store: ConfigStore) -> float:
+        """Rate to cap the camera at, or -1 to let it run as fast as it can.
+
+        The pipelines' max fps settings and throttle_fps already limit how often
+        the pipelines run, but the frames they skip still cross USB. Capping the
+        camera itself cuts that traffic. The camera feeds every enabled
+        pipeline, so it runs as fast as the fastest one needs, and a pipeline
+        with no limit leaves it uncapped unless throttle_fps caps it. Recordings
+        are encoded at a fixed rate, so while recording the cap never drops
+        below it, or the video would play back faster than real time.
+        """
+        local = config_store.local_config
+        remote = config_store.remote_config
+
+        pipeline_limits = []
+        if local.apriltags_enable:
+            pipeline_limits.append(local.apriltag_max_fps)
+        if local.objdetect_enable:
+            pipeline_limits.append(local.obj_detect_max_fps)
+        if len(pipeline_limits) > 0 and all(limit > 0 for limit in pipeline_limits):
+            fps = max(pipeline_limits)
+        else:
+            fps = -1
+
+        if remote.throttle_fps > 0:
+            fps = remote.throttle_fps if fps < 0 else min(fps, remote.throttle_fps)
+        if fps < 0:
+            return -1
+        if remote.is_recording:
+            return max(fps, RECORDING_FRAMERATE)
+        return fps
+
+    def _apply_frame_rate(self, fps: float, timeString: str) -> bool:
+        """Cap the camera at fps, or remove the cap when fps is negative.
+
+        Returns False if the camera will not take the change in place, so the
+        caller can fall back to the restart path. A camera without frame rate
+        control is not an error: the fps limits then only apply to the pipelines.
+        """
+        node_map = self._camera.GetNodeMap()
+        enable = self._find_node(node_map, "AcquisitionFrameRateEnable")
+        rate = self._find_node(node_map, "AcquisitionFrameRate")
+        if enable is None or rate is None:
+            print(timeString, "Camera has no frame rate control, not capping it")
+            return True
+
+        try:
+            if not genicam.IsWritable(enable):
+                print(timeString, "Not writable while grabbing: AcquisitionFrameRateEnable")
+                return False
+            if fps < 0:
+                enable.SetValue(False)
+                summary = "uncapped"
+            else:
+                enable.SetValue(True)
+                if not genicam.IsWritable(rate):
+                    print(timeString, "Not writable while grabbing: AcquisitionFrameRate")
+                    return False
+                applied = self._set_clamped(rate, fps)
+                summary = f"capped at {applied}" + ("" if applied == fps else f" (requested {fps}, clamped)")
+        except Exception:
+            print(timeString, "Failed to set frame rate:", traceback.format_exc())
+            return False
+
+        # Exposure and the link throughput limit can hold the camera below the
+        # cap, so report what it will actually deliver.
+        resulting = self._find_node(node_map, "ResultingFrameRate")
+        if resulting is not None and genicam.IsReadable(resulting):
+            summary += f", resulting {resulting.GetValue():.1f} fps"
+        print(timeString, "Camera frame rate", summary)
+        return True
+
     def get_frame(self, config_store: ConfigStore) -> Tuple[bool, cv2.Mat]:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
         if self._camera != None:
@@ -276,6 +361,11 @@ class PylonCapture(Capture):
                 # drop the MJPEG connection and force a browser refresh on every
                 # adjustment, so apply them to the running camera instead.
                 if not self._apply_live_config(config_store, timeString):
+                    print(timeString, "Could not apply in place, restarting")
+                    sys.exit(0)
+            frame_rate_limit = self._frame_rate_limit(config_store)
+            if frame_rate_limit != self._frame_rate_limit(self._last_config):
+                if not self._apply_frame_rate(frame_rate_limit, timeString):
                     print(timeString, "Could not apply in place, restarting")
                     sys.exit(0)
 
@@ -353,6 +443,8 @@ class PylonCapture(Capture):
 
                 self._camera.GetNodeMap().GetNode("ReverseX").SetValue(self._is_flipped)
                 self._camera.GetNodeMap().GetNode("ReverseY").SetValue(self._is_flipped)
+
+                self._apply_frame_rate(self._frame_rate_limit(config_store), timeString)
 
                 self._camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                 print(timeString, "Capture session ready")
