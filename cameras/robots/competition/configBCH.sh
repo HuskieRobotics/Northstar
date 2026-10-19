@@ -19,9 +19,9 @@ exec 2> >(while IFS= read -r line || [ -n "$line" ]; do
           done >&3)
 while [ True ];
    do date +'%Y-%m-%d %H:%M:%S'
-   "$REPO"/reenumerate/reenumerate -v -l 0x02110000
+   "$REPO"/reenumerate/reenumerate -v -l 0x00100000
    sleep 1;
-   "$REPO"/reenumerate/reenumerate -v -l 0x02210000
+   "$REPO"/reenumerate/reenumerate -v -l 0x00200000
    sleep 1;
    date +'%Y-%m-%d %H:%M:%S'
    nice -20 python3 __init__.py --config cameras/robots/competition/configBCH.json;
