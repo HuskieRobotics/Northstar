@@ -13,7 +13,7 @@ import time
 import ntcore
 import numpy
 from typing import Union
-from config.config import ConfigStore, LocalConfig, RemoteConfig, sanitize_camera_id
+from config.config import ConfigStore, LocalConfig, RemoteConfig, sanitize_camera_id, update_camera_matrix
 
 
 class ConfigSource:
@@ -64,6 +64,8 @@ class CalibrationConfigSource(ConfigSource):
         config_store.local_config.has_calibration = False
         config_store.local_config.camera_matrix = None
         config_store.local_config.distortion_coefficients = None
+        config_store.local_config.calibration_camera_matrix = None
+        config_store.local_config.calibration_resolution = None
 
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
         if camera_id == "":
@@ -80,9 +82,15 @@ class CalibrationConfigSource(ConfigSource):
         calibration_store = cv2.FileStorage(filename, cv2.FILE_STORAGE_READ)
         camera_matrix = calibration_store.getNode("camera_matrix").mat()
         distortion_coefficients = calibration_store.getNode("distortion_coefficients").mat()
+        # Stored as (height, width), the order of an image's shape
+        resolution = calibration_store.getNode("camera_resolution").mat()
         calibration_store.release()
         if type(camera_matrix) == numpy.ndarray and type(distortion_coefficients) == numpy.ndarray:
-            config_store.local_config.camera_matrix = camera_matrix
+            config_store.local_config.calibration_camera_matrix = camera_matrix
+            if type(resolution) == numpy.ndarray and resolution.size == 2:
+                resolution = resolution.flatten()
+                config_store.local_config.calibration_resolution = (int(resolution[1]), int(resolution[0]))
+            update_camera_matrix(config_store.local_config, timeString)
             config_store.local_config.distortion_coefficients = distortion_coefficients
             config_store.local_config.has_calibration = True
             print(timeString, "Loaded calibration for camera", camera_id, "from", filename)
