@@ -641,6 +641,23 @@ distortion_coefficients = (k1, k2, p1, p2, k3)
 Loaded by [`config/ConfigSource.py`](config/ConfigSource.py) whenever the reported `camera_id`
 changes.
 
+### Cropped cameras
+
+**Calibrations always describe the full sensor.** `pylon-cropped` cameras switch to the full sensor
+while calibration is active and go back to their crop afterwards, so the images you feed to Calib are
+full frame even for a cropped camera. The `camera_resolution` the file records should therefore match
+the sensor (1920×1200 for a daA1920). Northstar logs a warning when it does not.
+
+**Northstar corrects the principal point for the crop.** A crop starts `OffsetX` columns and `OffsetY`
+rows into the sensor. The principal point stays at the same physical spot, so its coordinates in the
+cropped image are `cx − OffsetX` and `cy − OffsetY`. Focal length and distortion do not change.
+`update_camera_matrix()` in [`config/config.py`](config/config.py) applies this, using the offsets the
+camera reports after the crop is set, and logs the shift. Every pipeline uses the corrected matrix.
+**Do not hand-edit cx or cy for a crop**: the correction would then be applied twice.
+
+Before this correction existed, the three cropped daA1920s ran from 2026-07-29 with full-frame
+calibrations and no shift: a 60 px offset, about 2.8° of yaw error in each camera's pose.
+
 ---
 
 ## History
