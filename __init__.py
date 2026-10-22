@@ -120,6 +120,10 @@ if __name__ == "__main__":
         # Load the calibration for the current camera before capturing from it
         calibration_config_source.update(config)
 
+        # Also before capturing: calibration images cover the full sensor, so
+        # a cropping capture has to know to stop cropping.
+        config.local_config.calibrating = calibration_command_source.get_calibrating(config)
+
         success, image = capture.get_frame(config)
         # Use ntcore's clock, not time.time(): ntcore converts published
         # timestamps to robot time using an offset measured against its own
@@ -172,7 +176,7 @@ if __name__ == "__main__":
             continue
         last_frame_time = timestamp
 
-        if calibration_command_source.get_calibrating(config):
+        if config.local_config.calibrating:
             # Calibration mode
             if not was_calibrating:
                 calibration_session_server = MjpegServer()

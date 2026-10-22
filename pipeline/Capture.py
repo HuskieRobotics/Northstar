@@ -16,7 +16,7 @@ from typing import Tuple, Union
 import AVFoundation
 import cv2
 import numpy
-from config.config import ConfigStore
+from config.config import ConfigStore, ImageROI, update_camera_matrix
 from output.VideoWriter import FRAMERATE as RECORDING_FRAMERATE
 from pypylon import genicam, pylon
 
@@ -349,6 +349,65 @@ class PylonCapture(Capture):
         print(timeString, "Camera frame rate", summary)
         return True
 
+    def _configure_roi(self, config_store: ConfigStore, timeString: str) -> None:
+        """Set the image ROI, and record where it sits on the sensor.
+
+        Every mode sets the ROI explicitly: the camera keeps its ROI for as
+        long as it has power, so a mode that left it alone would inherit
+        whatever crop the previous session used. For the same reason the full
+        size is not read from Width, which is only the full width if nothing
+        has cropped the camera since it powered on. It comes from WidthMax and
+        HeightMax instead, with the offsets zeroed first, because the maximums
+        shrink as the offsets grow.
+
+        Calibration always uses the full sensor, so every calibration file
+        describes it and a crop only needs the principal point shifted by its
+        offset (see update_camera_matrix).
+        """
+        node_map = self._camera.GetNodeMap()
+        node_map.GetNode("OffsetX").SetValue(0)
+        node_map.GetNode("OffsetY").SetValue(0)
+        sensor_width = node_map.GetNode("WidthMax").GetValue()
+        sensor_height = node_map.GetNode("HeightMax").GetValue()
+
+        if self._mode == "cropped" and not config_store.local_config.calibrating:
+            width = config_store.remote_config.camera_resolution_width
+            height = config_store.remote_config.camera_resolution_height
+            node_map.GetNode("Width").SetValue(width)
+            node_map.GetNode("Height").SetValue(height)
+            self._set_aligned(node_map.GetNode("OffsetX"), (sensor_width - width) / 2)
+            self._set_aligned(node_map.GetNode("OffsetY"), (sensor_height - height) / 2)
+        else:
+            node_map.GetNode("Width").SetValue(sensor_width)
+            node_map.GetNode("Height").SetValue(sensor_height)
+
+        # Read back what the camera took: the offsets are rounded to its increment
+        roi = ImageROI(
+            offset_x=node_map.GetNode("OffsetX").GetValue(),
+            offset_y=node_map.GetNode("OffsetY").GetValue(),
+            width=node_map.GetNode("Width").GetValue(),
+            height=node_map.GetNode("Height").GetValue(),
+            sensor_width=sensor_width,
+            sensor_height=sensor_height,
+        )
+        print(
+            timeString,
+            f"Image ROI {roi.width}x{roi.height} at ({roi.offset_x}, {roi.offset_y}) "
+            f"on a {roi.sensor_width}x{roi.sensor_height} sensor",
+        )
+        # The shift assumes the offset is measured in the image as delivered.
+        # Whether the camera measures it from the mirrored edge when flipped is
+        # unverified, and only matters if the crop is off-center.
+        margins_differ = (
+            roi.offset_x != roi.sensor_width - roi.width - roi.offset_x
+            or roi.offset_y != roi.sensor_height - roi.height - roi.offset_y
+        )
+        if self._is_flipped and margins_differ:
+            print(timeString, "Warning: off-center crop on a flipped camera; the principal point shift may be wrong")
+
+        config_store.local_config.image_roi = roi
+        update_camera_matrix(config_store.local_config, timeString)
+
     def get_frame(self, config_store: ConfigStore) -> Tuple[bool, cv2.Mat]:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
         if self._camera != None:
@@ -368,6 +427,15 @@ class PylonCapture(Capture):
                 if not self._apply_frame_rate(frame_rate_limit, timeString):
                     print(timeString, "Could not apply in place, restarting")
                     sys.exit(0)
+            if (
+                self._mode == "cropped"
+                and config_store.local_config.calibrating != self._last_config.local_config.calibrating
+            ):
+                # Calibration captures the full sensor, and the ROI can only
+                # change while the camera is not grabbing.
+                self._camera.StopGrabbing()
+                self._configure_roi(config_store, timeString)
+                self._camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
         if self._camera is None:
             if self._device == None:
@@ -427,19 +495,7 @@ class PylonCapture(Capture):
                     self._camera.BalanceRatioSelector.SetValue("Blue")
                     self._camera.BalanceRatio.SetValue(config_store.remote_config.camera_balance_blue)
 
-                elif self._mode == "cropped":
-                    fullWidth = self._camera.GetNodeMap().GetNode("Width").GetValue();
-                    fullHeight = self._camera.GetNodeMap().GetNode("Height").GetValue();
-                    self._camera.GetNodeMap().GetNode("Width").SetValue(config_store.remote_config.camera_resolution_width)
-                    self._camera.GetNodeMap().GetNode("Height").SetValue(config_store.remote_config.camera_resolution_height)
-                    self._set_aligned(
-                        self._camera.GetNodeMap().GetNode("OffsetX"),
-                        (fullWidth - config_store.remote_config.camera_resolution_width) / 2,
-                    )
-                    self._set_aligned(
-                        self._camera.GetNodeMap().GetNode("OffsetY"),
-                        (fullHeight - config_store.remote_config.camera_resolution_height) / 2,
-                    )
+                self._configure_roi(config_store, timeString)
 
                 self._camera.GetNodeMap().GetNode("ReverseX").SetValue(self._is_flipped)
                 self._camera.GetNodeMap().GetNode("ReverseY").SetValue(self._is_flipped)
