@@ -24,6 +24,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 
 #include <getopt.h>
+#include <unistd.h>
 #include <AssertMacros.h>
 
 #include <IOKit/IOKitLib.h>
@@ -77,6 +78,10 @@
 
 #define	vlog(x...)					if ( gVerbose ) { fprintf(stdout,x); }
 #define	elog(x...)					fprintf(stderr, x)
+
+// How many times to try opening a device that another process has open, one
+// second apart.
+#define	kOpenAttempts				5
 
 //—————————————————————————————————————————————————————————————————————————————
 //	Globals
@@ -284,7 +289,20 @@ void ProcessDevice(io_service_t aDevice)
   }
 
   kr = (*deviceInterface)->USBDeviceOpen(deviceInterface);
-  if(kr == kIOReturnSuccess)
+  // Pylon opens every Basler on the Mac while it enumerates, so a Northstar
+  // instance looking for its own camera can briefly hold this one. Retry rather
+  // than silently skipping the reset.
+  for (int attempt = 1; kr == kIOReturnExclusiveAccess && attempt < kOpenAttempts; attempt++)
+  {
+    vlog("USBDeviceOpen: device is open in another process, retrying\n");
+    sleep(1);
+    kr = (*deviceInterface)->USBDeviceOpen(deviceInterface);
+  }
+  if (kr != kIOReturnSuccess)
+  {
+    elog("USBDeviceOpen returned 0x%08x, not re-enumerating\n", kr);
+  }
+  else
   {
     if (gDoSetConfiguration)
     {

@@ -7,6 +7,7 @@
 
 import dataclasses
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -19,6 +20,34 @@ import numpy
 from config.config import ConfigStore
 from output.VideoWriter import FRAMERATE as RECORDING_FRAMERATE
 from pypylon import genicam, pylon
+
+# How long a restart may take to release the camera and shut Python down. A
+# camera that hangs while still attached answers nothing, so every request pylon
+# sends it on the way out waits for its own timeout. That has held a restart up
+# for over 100 s.
+RESTART_EXIT_TIMEOUT_S = 5
+
+
+def exit_for_restart(camera: Union[None, pylon.InstantCamera] = None) -> None:
+    """Release the camera, if given, and exit so the launcher script restarts us.
+
+    If that takes longer than RESTART_EXIT_TIMEOUT_S, SIGALRM kills the process.
+    Its default action works even while the main thread is blocked inside pylon,
+    where a Python watchdog thread could not run, and it also covers interpreter
+    shutdown. The kernel releases the camera either way. The launcher's shell
+    then reports "Alarm clock" on stderr, so the error log shows that it fired.
+    """
+    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    signal.alarm(RESTART_EXIT_TIMEOUT_S)
+    if camera is not None:
+        start = time.time()
+        camera.DestroyDevice()
+        print(_time_string(), f"Released camera in {time.time() - start:.1f} s")
+    sys.exit(0)
+
+
+def _time_string() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
 
 
 class Capture:
@@ -354,7 +383,7 @@ class PylonCapture(Capture):
         if self._camera != None:
             if self._restart_required_changed(self._last_config, config_store):
                 print(timeString, "Config changed, restarting")
-                sys.exit(0)
+                exit_for_restart()
             elif self._live_tunable_changed(self._last_config, config_store):
                 # Exposure, gain and denoise are tuned interactively during field
                 # calibration while someone watches the stream. Exiting here would
@@ -362,20 +391,34 @@ class PylonCapture(Capture):
                 # adjustment, so apply them to the running camera instead.
                 if not self._apply_live_config(config_store, timeString):
                     print(timeString, "Could not apply in place, restarting")
-                    sys.exit(0)
+                    exit_for_restart()
             frame_rate_limit = self._frame_rate_limit(config_store)
             if frame_rate_limit != self._frame_rate_limit(self._last_config):
                 if not self._apply_frame_rate(frame_rate_limit, timeString):
                     print(timeString, "Could not apply in place, restarting")
-                    sys.exit(0)
+                    exit_for_restart()
 
-        if self._camera is None:
+        if self._camera is None and config_store.remote_config.camera_id == "":
+            # Wait for NetworkTables to name the camera before enumerating.
+            # Enumeration opens every Basler on the Mac, and one camera that has
+            # hung stalls it for tens of seconds in every instance at once.
+            # configPower never gets a camera ID, so it used to enumerate every
+            # second for as long as it ran.
+            self._last_failed_connection_time = None
+        elif self._camera is None:
             if self._device == None:
+                enumerate_start = time.time()
                 tl_factory = pylon.TlFactory.GetInstance()
                 di_filter = pylon.DeviceInfo()
                 di_filter.SetDeviceClass("BaslerUsb")
                 device_infos: list[pylon.DeviceInfo] = tl_factory.EnumerateDevices([di_filter])
                 self._device: Union[None, any] = None  # Native object type
+                # Enumeration can take tens of seconds, so stamp what follows
+                # with the time it finished, not the time get_frame() started.
+                timeString = _time_string()
+                enumerate_elapsed = time.time() - enumerate_start
+                if enumerate_elapsed > 1.0:
+                    print(timeString, f"Enumerating cameras took {enumerate_elapsed:.1f} s")
                 print(timeString, "Looking for camera: ", config_store.remote_config.camera_id)
                 for device_info in device_infos:
                     print(timeString, "Found local device: ", device_info.GetSerialNumber())
@@ -383,14 +426,11 @@ class PylonCapture(Capture):
                         self._device = pylon.TlFactory.GetInstance().CreateDevice(device_info)
             if self._device == None:
                 print(timeString, "Unable to find matching device")
-                if config_store.remote_config.camera_id != "":
-                    if self._last_failed_connection_time == None:
-                        self._last_failed_connection_time =  time.time()
-                    elif time.time() - self._last_failed_connection_time > PylonCapture.failed_connection_timeout:
-                        print(timeString, "No device found after ", PylonCapture.failed_connection_timeout, " seconds, restarting")
-                        sys.exit(0)
-                else:
-                    self._last_failed_connection_time = None
+                if self._last_failed_connection_time == None:
+                    self._last_failed_connection_time =  time.time()
+                elif time.time() - self._last_failed_connection_time > PylonCapture.failed_connection_timeout:
+                    print(timeString, "No device found after ", PylonCapture.failed_connection_timeout, " seconds, restarting")
+                    exit_for_restart()
             else:
                 print(timeString, "Starting capture session")
                 self._last_failed_connection_time = None
@@ -447,7 +487,7 @@ class PylonCapture(Capture):
                 self._apply_frame_rate(self._frame_rate_limit(config_store), timeString)
 
                 self._camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-                print(timeString, "Capture session ready")
+                print(_time_string(), "Capture session ready")
 
         self._last_config = ConfigStore(
             dataclasses.replace(config_store.local_config), dataclasses.replace(config_store.remote_config)
@@ -474,8 +514,7 @@ class PylonCapture(Capture):
                             self._last_failed_time =  time.time()
                         elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                             print(timeString, "Multiple consecutive capture failures, restarting")
-                            self._camera.DestroyDevice()
-                            sys.exit(0)
+                            exit_for_restart(self._camera)
                         
                         return False, None
             except Exception:
@@ -484,8 +523,7 @@ class PylonCapture(Capture):
                     self._last_failed_time =  time.time()
                 elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                     print(timeString, "Multiple consecutive capture failures, restarting")
-                    self._camera.DestroyDevice()
-                    sys.exit(0)
+                    exit_for_restart(self._camera)
                 return False, None
 
 
