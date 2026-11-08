@@ -351,35 +351,23 @@ the robot's computer.
 
 ### 4.1 `aruco_max` CPU threshold path
 
-[aruco_max.h](../aruco_max_cpp/aruco_max.h) already has a CPU threshold branch; it's unreachable only
-because `metalCtxPtr` is never null. Guard the Metal pieces by platform, and add an environment switch
-so the Mac can run the CPU path for the [Phase 0](#phase-0--before-you-start) comparison:
+> **Done in #21**, together with 4.2–4.5.
 
-```cpp
-// top of file
-#ifdef __APPLE__
-#include "metal_context.h"
-#endif
+[aruco_max.h](../aruco_max_cpp/aruco_max.h) already had a CPU threshold branch; it was unreachable
+only because `metalCtxPtr` was never null. The Metal pieces are now guarded by `#ifdef __APPLE__`,
+so every other platform uses the CPU branch.
 
-// class members
-#ifdef __APPLE__
-  mutable ArucoMaxMetalContext _metalCtx;
-  bool _forceCpu = std::getenv("NORTHSTAR_ARUCO_CPU") != nullptr;
-#endif
+**Running the CPU path on the Mac** (for the [Phase 0](#phase-0--before-you-start) comparison):
+set `NORTHSTAR_ARUCO_CPU` in the environment. For the launchd instances, add
+`export NORTHSTAR_ARUCO_CPU=1` next to the `GENICAM_CACHE_V3_1` line in each AprilTag `config*.sh`,
+then restart them. Every instance logs which path it's using at startup:
 
-// detectImpl, step 2
-#ifdef __APPLE__
-  if (!_forceCpu) {
-    uint8_t *outData = _metalCtx.adaptiveThreshold(
-        bwimage.ptr<uint8_t>(), bwimage.cols, bwimage.rows,
-        _params.boxFilterSize, _params.thres);
-    thresImage = cv::Mat(bwimage.rows, bwimage.cols, CV_8UC1, outData);
-  } else
-#endif
-  {
-    cv::boxFilter(/* ...existing CPU path, unchanged... */);
-  }
 ```
+aruco_max adaptive threshold: Metal (GPU)
+aruco_max adaptive threshold: CPU
+```
+
+Remove the line and restart to go back to Metal.
 
 **Verify parity.** Run both paths on the Mac against the same recorded footage. The Metal kernel and
 `cv::boxFilter` may round differently, so check that detected tag IDs and corners match (or differ
@@ -743,11 +731,29 @@ The NUC replaces the Mac on the robot only after all of these pass. Record the r
 The NUC needs **19 V DC** and ships with a 120 W adapter. A robot battery is 12 V nominal and can sag to
 around 7 V under load.
 
+- **19 V only.** ASUS's FAQ says the NUC 15 Pro takes a standard 19 V barrel jack and no wide-range
+  input. A 12 V converter, like the DROK we use elsewhere, won't run it.
 - Use a **buck-boost DC-DC converter with a regulated 19 V output** that holds up from about 7 V to
   14 V input. Rate it **at least 100 W**: the 225H at its 40 W cTDP plus turbo, plus about 4.5 W of USB
   bus power per camera (measured on the Mac), plus margin.
 - Measure actual draw under test 2 with an inline meter and size the converter from that, not from the
   adapter label.
+- **Size the input wiring and breaker for low battery voltage.** At 100 W out from a 9 V input, the
+  converter draws over 12 A.
+
+**Converter candidates (November 2026).** DROK doesn't appear to make a fixed 19 V version of its sealed
+9–36 V buck-boost line; those all output 12 V. Its adjustable modules can be set to 19 V but top out
+at 80–90 W, and they're open boards with an adjustment potentiometer that vibration could move.
+
+| Candidate | Input | Output | Notes |
+| --- | --- | --- | --- |
+| [Generic 9–36 V to 19 V 10 A 190 W buck-boost](https://www.amazon.com/clp/B0D3LRT3CM) | 9–36 V | 19 V fixed, 190 W | Sealed, same style as the DROK units. Not confirmed to be made by DROK |
+| DROK adjustable buck-boost (e.g. [6–36 V, 80 W](https://www.amazon.com/DROK-Converter-Adjustable-Regulator-Transformer/dp/B0BQBXMH67)) | 6–36 V | Adjustable, 80–90 W | Below the 100 W target, and not built for vibration. Not recommended |
+
+**The 9 V minimum input is the main risk** with the sealed units, including the DROK 12 V model.
+Below 9 V the converter drops out and the NUC loses power, and a robot battery can sag to about 7 V.
+Brownout test 10 in [Phase 10](#phase-10--acceptance-tests) decides whether that's acceptable. If it
+isn't, look for a 19 V converter rated down to 6–7 V input.
 - Feed it from the PDH through an appropriately rated breaker, and check the current FRC rules on
   custom circuits and electronics placement.
 - Use a DC barrel connector that matches the NUC's jack (check the supplied adapter's plug size) with
@@ -788,11 +794,11 @@ around 7 V under load.
 
 | File | Change | Phase |
 | --- | --- | --- |
-| `aruco_max_cpp/aruco_max.h` | `#ifdef __APPLE__` around Metal; `NORTHSTAR_ARUCO_CPU` switch | 4.1 |
-| `aruco_max_cpp/setup.py` | Platform branch: sources, include/lib dirs, flags | 4.2 |
-| `requirements.txt` | Platform markers; `openvino` on Linux | 4.3 |
-| `pipeline/Capture.py` | Guard `import AVFoundation`; `avfoundation` impl macOS-only | 4.4 |
-| `pipeline/ObjectDetector.py` | Shared post-processing; `OpenVINOObjectDetector` | 4.5, 8 |
+| `aruco_max_cpp/aruco_max.h` | `#ifdef __APPLE__` around Metal; `NORTHSTAR_ARUCO_CPU` switch. ✅ #21 | 4.1 |
+| `aruco_max_cpp/setup.py` | Platform branch: sources, include/lib dirs, flags. ✅ #21 | 4.2 |
+| `requirements.txt` | Platform markers (✅ #21); `openvino` on Linux | 4.3 |
+| `pipeline/Capture.py` | Guard `import AVFoundation`; `avfoundation` impl macOS-only. ✅ #21 | 4.4 |
+| `pipeline/ObjectDetector.py` | Guard `import coremltools` (✅ #21); shared post-processing; `OpenVINOObjectDetector` | 4.5, 8 |
 | `objdetect_worker.py` | Choose detector by platform or config | 4.5, 8 |
 | `config/config.py`, `config/ConfigSource.py` | Optional `obj_detect_device` key | 8 |
 | `output/VideoWriter.py` | `shutil.which("ffmpeg")`; VA-API arguments on Linux | 4.6, 9 |
