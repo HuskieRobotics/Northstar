@@ -7,9 +7,12 @@
 
 #pragma once
 
+#ifdef __APPLE__
 #include "metal_context.h"
+#endif
 
 #include <cmath>
+#include <cstdlib>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/hal/intrin.hpp>
 #include <opencv2/imgproc.hpp>
@@ -157,9 +160,27 @@ public:
       cv::OutputArray ids,
       cv::OutputArrayOfArrays rejectedImgPoints = cv::noArray()) const;
 
+  /**
+   * @brief Whether adaptive thresholding runs on the GPU (Metal).
+   *
+   * True on macOS unless NORTHSTAR_ARUCO_CPU is set in the environment when
+   * the detector is constructed. Always false elsewhere, where the CPU path
+   * is the only one.
+   */
+  bool usesMetal() const {
+#ifdef __APPLE__
+    return _useMetal;
+#else
+    return false;
+#endif
+  }
+
 private:
   DetectorParameters _params;
+#ifdef __APPLE__
   mutable ArucoMaxMetalContext _metalCtx;
+  bool _useMetal = std::getenv("NORTHSTAR_ARUCO_CPU") == nullptr;
+#endif
 
   std::vector<Marker>
   detectImpl(const cv::Mat &img,
@@ -269,13 +290,15 @@ ArucoMaxDetector::detectImpl(const cv::Mat &img,
   }
 
   // 2. Adaptive Thresholding
-  ArucoMaxMetalContext *metalCtxPtr = &_metalCtx;
-  if (metalCtxPtr != nullptr) {
-    uint8_t *outData = metalCtxPtr->adaptiveThreshold(
+#ifdef __APPLE__
+  if (_useMetal) {
+    uint8_t *outData = _metalCtx.adaptiveThreshold(
         bwimage.ptr<uint8_t>(), bwimage.cols, bwimage.rows,
         _params.boxFilterSize, _params.thres);
     thresImage = cv::Mat(bwimage.rows, bwimage.cols, CV_8UC1, outData);
-  } else {
+  } else
+#endif
+  {
     cv::boxFilter(bwimage, thresImage, bwimage.type(),
                   cv::Size(_params.boxFilterSize, _params.boxFilterSize),
                   cv::Point(-1, -1), true,
