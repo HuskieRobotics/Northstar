@@ -35,6 +35,7 @@ Further reading in this repo:
 | [`claude/webAppDesign.md`](claude/webAppDesign.md) | Design record — how Northstar behaves, every NT key, and *why* each decision was made. The most complete description of this system's runtime behaviour |
 | [`claude/MOVE-TO-HOME.md`](claude/MOVE-TO-HOME.md) | One-time migration of the deployment off `~/Documents` |
 | [`MacMiniPorts.md`](MacMiniPorts.md) | Physical port layout, front and back |
+| [`claude/NUC-PORT.md`](claude/NUC-PORT.md) | Plan for porting Northstar to an ASUS NUC 15 Pro running Ubuntu, the fallback if the Mac mini is not legal for 2027 |
 
 ---
 
