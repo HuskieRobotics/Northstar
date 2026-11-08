@@ -6,14 +6,20 @@
 # the root directory of this project.
 
 import math
+import sys
 from typing import List, Union
 
-import coremltools
 import cv2
 import numpy as np
 from config.config import ConfigStore
 from PIL import Image
 from vision_types import ObjDetectObservation
+
+# Core ML runs models only on macOS, and requirements.txt installs coremltools
+# only there. Importing it unconditionally kept the pipeline from starting on
+# Linux even with object detection off.
+if sys.platform == "darwin":
+    import coremltools
 
 
 class ObjectDetector:
@@ -25,7 +31,7 @@ class ObjectDetector:
 
 
 class CoreMLObjectDetector(ObjectDetector):
-    _model: Union[coremltools.models.MLModel, None] = None
+    _model: Union["coremltools.models.MLModel", None] = None
 
     def __init__(self) -> None:
         pass
@@ -33,6 +39,10 @@ class CoreMLObjectDetector(ObjectDetector):
     def detect(self, image: cv2.Mat, config: ConfigStore) -> List[ObjDetectObservation]:
         # Load CoreML model
         if self._model == None:
+            if sys.platform != "darwin":
+                raise RuntimeError(
+                    "CoreML object detection runs only on macOS. See claude/NUC-PORT.md, Phase 8, for the Linux plan."
+                )
             print("Loading object detection model")
             self._model = coremltools.models.MLModel(config.local_config.obj_detect_model)
             print("Finished loading object detection model")
