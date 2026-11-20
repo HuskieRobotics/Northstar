@@ -7,6 +7,7 @@
 
 import dataclasses
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -15,7 +16,7 @@ from typing import Tuple, Union
 
 import cv2
 import numpy
-from config.config import ConfigStore
+from config.config import ConfigStore, ImageROI, update_camera_matrix
 from output.VideoWriter import FRAMERATE as RECORDING_FRAMERATE
 from pypylon import genicam, pylon
 
@@ -23,6 +24,34 @@ from pypylon import genicam, pylon
 # the whole pipeline from starting anywhere else.
 if sys.platform == "darwin":
     import AVFoundation
+
+# How long a restart may take to release the camera and shut Python down. A
+# camera that hangs while still attached answers nothing, so every request pylon
+# sends it on the way out waits for its own timeout. That has held a restart up
+# for over 100 s.
+RESTART_EXIT_TIMEOUT_S = 5
+
+
+def exit_for_restart(camera: Union[None, pylon.InstantCamera] = None) -> None:
+    """Release the camera, if given, and exit so the launcher script restarts us.
+
+    If that takes longer than RESTART_EXIT_TIMEOUT_S, SIGALRM kills the process.
+    Its default action works even while the main thread is blocked inside pylon,
+    where a Python watchdog thread could not run, and it also covers interpreter
+    shutdown. The kernel releases the camera either way. The launcher's shell
+    then reports "Alarm clock" on stderr, so the error log shows that it fired.
+    """
+    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    signal.alarm(RESTART_EXIT_TIMEOUT_S)
+    if camera is not None:
+        start = time.time()
+        camera.DestroyDevice()
+        print(_time_string(), f"Released camera in {time.time() - start:.1f} s")
+    sys.exit(0)
+
+
+def _time_string() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
 
 
 class Capture:
@@ -353,12 +382,77 @@ class PylonCapture(Capture):
         print(timeString, "Camera frame rate", summary)
         return True
 
+    def _configure_roi(self, config_store: ConfigStore, timeString: str) -> None:
+        """Set the image ROI, and record where it sits on the sensor.
+
+        The sensor is larger than the image the camera delivers at power-on: a
+        daA1920-160um has a 1936x1216 sensor and powers up with a 1920x1200 ROI
+        at (8, 8). The sensor size is read from WidthMax and HeightMax with the
+        offsets zeroed first, because the maximums shrink as the offsets grow.
+        Width is no use for this: it is whatever the last session left.
+
+        A cropped camera centres its crop on the sensor, and switches to the
+        full sensor while calibration is active. Uncropped modes keep the ROI
+        the camera powered up with, which is the image their calibrations were
+        made from. Either way, update_camera_matrix() shifts the principal
+        point by where this image sits relative to the calibration's image.
+        """
+        node_map = self._camera.GetNodeMap()
+        found_offset_x = node_map.GetNode("OffsetX").GetValue()
+        found_offset_y = node_map.GetNode("OffsetY").GetValue()
+        node_map.GetNode("OffsetX").SetValue(0)
+        node_map.GetNode("OffsetY").SetValue(0)
+        sensor_width = node_map.GetNode("WidthMax").GetValue()
+        sensor_height = node_map.GetNode("HeightMax").GetValue()
+
+        if self._mode != "cropped":
+            # Width and Height are unchanged, so the offsets they had are still valid
+            node_map.GetNode("OffsetX").SetValue(found_offset_x)
+            node_map.GetNode("OffsetY").SetValue(found_offset_y)
+        elif config_store.local_config.calibrating:
+            node_map.GetNode("Width").SetValue(sensor_width)
+            node_map.GetNode("Height").SetValue(sensor_height)
+        else:
+            width = config_store.remote_config.camera_resolution_width
+            height = config_store.remote_config.camera_resolution_height
+            node_map.GetNode("Width").SetValue(width)
+            node_map.GetNode("Height").SetValue(height)
+            self._set_aligned(node_map.GetNode("OffsetX"), (sensor_width - width) / 2)
+            self._set_aligned(node_map.GetNode("OffsetY"), (sensor_height - height) / 2)
+
+        # Read back what the camera took: the offsets are rounded to its increment
+        roi = ImageROI(
+            offset_x=node_map.GetNode("OffsetX").GetValue(),
+            offset_y=node_map.GetNode("OffsetY").GetValue(),
+            width=node_map.GetNode("Width").GetValue(),
+            height=node_map.GetNode("Height").GetValue(),
+            sensor_width=sensor_width,
+            sensor_height=sensor_height,
+        )
+        print(
+            timeString,
+            f"Image ROI {roi.width}x{roi.height} at ({roi.offset_x}, {roi.offset_y}) "
+            f"on a {roi.sensor_width}x{roi.sensor_height} sensor",
+        )
+        # The shift assumes the offset is measured in the image as delivered.
+        # Whether the camera measures it from the mirrored edge when flipped is
+        # unverified, and only matters if the crop is off-center.
+        margins_differ = (
+            roi.offset_x != roi.sensor_width - roi.width - roi.offset_x
+            or roi.offset_y != roi.sensor_height - roi.height - roi.offset_y
+        )
+        if self._is_flipped and margins_differ:
+            print(timeString, "Warning: off-center crop on a flipped camera; the principal point shift may be wrong")
+
+        config_store.local_config.image_roi = roi
+        update_camera_matrix(config_store.local_config, timeString)
+
     def get_frame(self, config_store: ConfigStore) -> Tuple[bool, cv2.Mat]:
         timeString = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
         if self._camera != None:
             if self._restart_required_changed(self._last_config, config_store):
                 print(timeString, "Config changed, restarting")
-                sys.exit(0)
+                exit_for_restart()
             elif self._live_tunable_changed(self._last_config, config_store):
                 # Exposure, gain and denoise are tuned interactively during field
                 # calibration while someone watches the stream. Exiting here would
@@ -366,20 +460,43 @@ class PylonCapture(Capture):
                 # adjustment, so apply them to the running camera instead.
                 if not self._apply_live_config(config_store, timeString):
                     print(timeString, "Could not apply in place, restarting")
-                    sys.exit(0)
+                    exit_for_restart()
             frame_rate_limit = self._frame_rate_limit(config_store)
             if frame_rate_limit != self._frame_rate_limit(self._last_config):
                 if not self._apply_frame_rate(frame_rate_limit, timeString):
                     print(timeString, "Could not apply in place, restarting")
-                    sys.exit(0)
+                    exit_for_restart()
+            if (
+                self._mode == "cropped"
+                and config_store.local_config.calibrating != self._last_config.local_config.calibrating
+            ):
+                # Calibration captures the full sensor, and the ROI can only
+                # change while the camera is not grabbing.
+                self._camera.StopGrabbing()
+                self._configure_roi(config_store, timeString)
+                self._camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
 
-        if self._camera is None:
+        if self._camera is None and config_store.remote_config.camera_id == "":
+            # Wait for NetworkTables to name the camera before enumerating.
+            # Enumeration opens every Basler on the Mac, and one camera that has
+            # hung stalls it for tens of seconds in every instance at once.
+            # configPower never gets a camera ID, so it used to enumerate every
+            # second for as long as it ran.
+            self._last_failed_connection_time = None
+        elif self._camera is None:
             if self._device == None:
+                enumerate_start = time.time()
                 tl_factory = pylon.TlFactory.GetInstance()
                 di_filter = pylon.DeviceInfo()
                 di_filter.SetDeviceClass("BaslerUsb")
                 device_infos: list[pylon.DeviceInfo] = tl_factory.EnumerateDevices([di_filter])
                 self._device: Union[None, any] = None  # Native object type
+                # Enumeration can take tens of seconds, so stamp what follows
+                # with the time it finished, not the time get_frame() started.
+                timeString = _time_string()
+                enumerate_elapsed = time.time() - enumerate_start
+                if enumerate_elapsed > 1.0:
+                    print(timeString, f"Enumerating cameras took {enumerate_elapsed:.1f} s")
                 print(timeString, "Looking for camera: ", config_store.remote_config.camera_id)
                 for device_info in device_infos:
                     print(timeString, "Found local device: ", device_info.GetSerialNumber())
@@ -387,14 +504,11 @@ class PylonCapture(Capture):
                         self._device = pylon.TlFactory.GetInstance().CreateDevice(device_info)
             if self._device == None:
                 print(timeString, "Unable to find matching device")
-                if config_store.remote_config.camera_id != "":
-                    if self._last_failed_connection_time == None:
-                        self._last_failed_connection_time =  time.time()
-                    elif time.time() - self._last_failed_connection_time > PylonCapture.failed_connection_timeout:
-                        print(timeString, "No device found after ", PylonCapture.failed_connection_timeout, " seconds, restarting")
-                        sys.exit(0)
-                else:
-                    self._last_failed_connection_time = None
+                if self._last_failed_connection_time == None:
+                    self._last_failed_connection_time =  time.time()
+                elif time.time() - self._last_failed_connection_time > PylonCapture.failed_connection_timeout:
+                    print(timeString, "No device found after ", PylonCapture.failed_connection_timeout, " seconds, restarting")
+                    exit_for_restart()
             else:
                 print(timeString, "Starting capture session")
                 self._last_failed_connection_time = None
@@ -431,19 +545,7 @@ class PylonCapture(Capture):
                     self._camera.BalanceRatioSelector.SetValue("Blue")
                     self._camera.BalanceRatio.SetValue(config_store.remote_config.camera_balance_blue)
 
-                elif self._mode == "cropped":
-                    fullWidth = self._camera.GetNodeMap().GetNode("Width").GetValue();
-                    fullHeight = self._camera.GetNodeMap().GetNode("Height").GetValue();
-                    self._camera.GetNodeMap().GetNode("Width").SetValue(config_store.remote_config.camera_resolution_width)
-                    self._camera.GetNodeMap().GetNode("Height").SetValue(config_store.remote_config.camera_resolution_height)
-                    self._set_aligned(
-                        self._camera.GetNodeMap().GetNode("OffsetX"),
-                        (fullWidth - config_store.remote_config.camera_resolution_width) / 2,
-                    )
-                    self._set_aligned(
-                        self._camera.GetNodeMap().GetNode("OffsetY"),
-                        (fullHeight - config_store.remote_config.camera_resolution_height) / 2,
-                    )
+                self._configure_roi(config_store, timeString)
 
                 self._camera.GetNodeMap().GetNode("ReverseX").SetValue(self._is_flipped)
                 self._camera.GetNodeMap().GetNode("ReverseY").SetValue(self._is_flipped)
@@ -451,7 +553,7 @@ class PylonCapture(Capture):
                 self._apply_frame_rate(self._frame_rate_limit(config_store), timeString)
 
                 self._camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-                print(timeString, "Capture session ready")
+                print(_time_string(), "Capture session ready")
 
         self._last_config = ConfigStore(
             dataclasses.replace(config_store.local_config), dataclasses.replace(config_store.remote_config)
@@ -478,8 +580,7 @@ class PylonCapture(Capture):
                             self._last_failed_time =  time.time()
                         elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                             print(timeString, "Multiple consecutive capture failures, restarting")
-                            self._camera.DestroyDevice()
-                            sys.exit(0)
+                            exit_for_restart(self._camera)
                         
                         return False, None
             except Exception:
@@ -488,8 +589,7 @@ class PylonCapture(Capture):
                     self._last_failed_time =  time.time()
                 elif time.time() - self._last_failed_time > PylonCapture.failed_time_restart_timeout:
                     print(timeString, "Multiple consecutive capture failures, restarting")
-                    self._camera.DestroyDevice()
-                    sys.exit(0)
+                    exit_for_restart(self._camera)
                 return False, None
 
 

@@ -48,12 +48,17 @@ launchd  →  cameras/robots/<profile>/config<X>.sh  →  python3 __init__.py --
  (plist)      (while-true wrapper, re-enumerates USB)         (the actual pipeline)
 ```
 
-Three consequences that catch people out:
+Four consequences that catch people out:
 
 - **The launchd PID is the shell wrapper, not Python.** The wrapper restarts Python in a `while true`
   loop, so launchd can report a service as running while Python crash-loops.
 - **Northstar exits when it loses NetworkTables.** The wrapper restarts it. One restart per instance
   follows every roboRIO reboot or code redeploy — that is normal, not a fault.
+- **A restart gets 5 s to exit, then is killed.** A camera that hangs while still attached answers
+  nothing, and pylon used to spend over 100 s timing out while releasing it. Every restart path now
+  goes through `exit_for_restart()` in `pipeline/Capture.py`, which arms `SIGALRM` first. When it
+  fires, the error log shows the wrapper's `Alarm clock: 14` line. That means the camera was not
+  answering, not that Northstar crashed.
 - **stdout and stderr go to `logs/config<X>Out.log` and `logs/config<X>Error.log`**, appended
   indefinitely with no rotation. **Both are timestamped** — stdout by Python's own prints, stderr by a
   wrapper in `config*.sh`, because OpenCV, Pylon and tracebacks write bare lines. Since launchd never
@@ -386,6 +391,15 @@ The things that were genuinely hard to work out, kept because they will be neede
 Power-cycles a USB port so a camera re-enumerates. The launcher scripts call it before starting
 Python, which is how a wedged camera gets recovered at startup.
 
+It has to open the device first. If another process holds it open, it retries once a second for up
+to five tries, then logs `USBDeviceOpen returned 0x…, not re-enumerating` to stderr. That other
+process is usually a Northstar instance enumerating, because pylon opens every Basler on the Mac
+while it enumerates. That is also why a pylon instance does not enumerate until NetworkTables has
+given it a camera ID: `configPower` never gets one, and it used to enumerate every second. Rebuild
+it after pulling a change (`cd reenumerate && make`): the binary is not checked in. A Makefile from
+before November 2026 lists no dependency on `reenumerate.c`, so `make` reports the old binary as up
+to date. Use `make -B` the first time to force the rebuild.
+
 ```bash
 # Find a device's location ID by vendor/product
 ./reenumerate -v 0x2676,0xba06
@@ -640,6 +654,30 @@ distortion_coefficients = (k1, k2, p1, p2, k3)
 
 Loaded by [`config/ConfigSource.py`](config/ConfigSource.py) whenever the reported `camera_id`
 changes.
+
+### Cropped cameras
+
+**The sensor is larger than the camera's default image.** A daA1920-160um's sensor is 1936×1216. It
+powers up delivering 1920×1200 centred on it, at offset (8, 8). The calibrations made before cropping
+describe that centred image.
+
+**Calibrations are taken to be centred on the sensor.** A calibration file records its image size but
+not where the image sat. Northstar assumes it was centred, which holds both for the power-on image and
+for a cropped camera's calibration: `pylon-cropped` cameras switch to the full sensor while
+calibration is active. Uncropped modes leave the ROI as the camera powered up.
+
+**Northstar corrects the principal point for the crop.** The principal point stays at the same
+physical spot on the sensor, so it moves by however far the current image's origin is from the
+calibration image's origin. For an 1800×1200 crop centred at (68, 8) with a 1920×1200 calibration at
+(8, 8), cx drops by 60 and cy is unchanged. Focal length and distortion do not change.
+`update_camera_matrix()` in [`config/config.py`](config/config.py) applies this, using the offsets the
+camera reports after the ROI is set, and logs the shift. Every pipeline uses the corrected matrix.
+**Do not hand-edit cx or cy for a crop**: the correction would then be applied twice.
+
+Before this correction existed, the three cropped daA1920s ran from 2026-07-29 with an 1800×1200 crop
+at (60, 0) and no shift. Against the calibration image at (8, 8), that is 52 px of yaw error (about
+2.4°) and 8 px of pitch error (about 0.4°) in each camera's pose. Publishing 1920×1200 to a
+`pylon-cropped` camera put its image at (0, 0), still 8 px off in both axes.
 
 ---
 

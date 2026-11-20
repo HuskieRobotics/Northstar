@@ -23,7 +23,7 @@ from output.OutputPublisher import NTOutputPublisher, OutputPublisher
 from output.StreamServer import MjpegServer, StreamServer
 from output.overlay_util import *
 from output.VideoWriter import FFmpegVideoWriter, VideoWriter
-from pipeline.Capture import CAPTURE_IMPLS
+from pipeline.Capture import CAPTURE_IMPLS, exit_for_restart
 from power_metrics import run_power_metrics
 
 # A frame is due once the time since the last one used reaches this fraction of
@@ -120,6 +120,10 @@ if __name__ == "__main__":
         # Load the calibration for the current camera before capturing from it
         calibration_config_source.update(config)
 
+        # Also before capturing: calibration images cover the full sensor, so
+        # a cropping capture has to know to stop cropping.
+        config.local_config.calibrating = calibration_command_source.get_calibrating(config)
+
         success, image = capture.get_frame(config)
         # Use ntcore's clock, not time.time(): ntcore converts published
         # timestamps to robot time using an offset measured against its own
@@ -172,7 +176,7 @@ if __name__ == "__main__":
             continue
         last_frame_time = timestamp
 
-        if calibration_command_source.get_calibrating(config):
+        if config.local_config.calibrating:
             # Calibration mode
             if not was_calibrating:
                 calibration_session_server = MjpegServer()
@@ -185,8 +189,7 @@ if __name__ == "__main__":
 
         elif was_calibrating:
             # restart after calibration
-            capture._camera.DestroyDevice()
-            sys.exit(0)
+            exit_for_restart(capture._camera)
 
         elif config.local_config.has_calibration:
             # AprilTag pipeline
