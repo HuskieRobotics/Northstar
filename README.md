@@ -396,7 +396,9 @@ to five tries, then logs `USBDeviceOpen returned 0x…, not re-enumerating` to s
 process is usually a Northstar instance enumerating, because pylon opens every Basler on the Mac
 while it enumerates. That is also why a pylon instance does not enumerate until NetworkTables has
 given it a camera ID: `configPower` never gets one, and it used to enumerate every second. Rebuild
-it after pulling a change (`cd reenumerate && make`): the binary is not checked in.
+it after pulling a change (`cd reenumerate && make`): the binary is not checked in. A Makefile from
+before November 2026 lists no dependency on `reenumerate.c`, so `make` reports the old binary as up
+to date. Use `make -B` the first time to force the rebuild.
 
 ```bash
 # Find a device's location ID by vendor/product
