@@ -643,20 +643,27 @@ changes.
 
 ### Cropped cameras
 
-**Calibrations always describe the full sensor.** `pylon-cropped` cameras switch to the full sensor
-while calibration is active and go back to their crop afterwards, so the images you feed to Calib are
-full frame even for a cropped camera. The `camera_resolution` the file records should therefore match
-the sensor (1920×1200 for a daA1920). Northstar logs a warning when it does not.
+**The sensor is larger than the camera's default image.** A daA1920-160um's sensor is 1936×1216. It
+powers up delivering 1920×1200 centred on it, at offset (8, 8). The calibrations made before cropping
+describe that centred image.
 
-**Northstar corrects the principal point for the crop.** A crop starts `OffsetX` columns and `OffsetY`
-rows into the sensor. The principal point stays at the same physical spot, so its coordinates in the
-cropped image are `cx − OffsetX` and `cy − OffsetY`. Focal length and distortion do not change.
+**Calibrations are taken to be centred on the sensor.** A calibration file records its image size but
+not where the image sat. Northstar assumes it was centred, which holds both for the power-on image and
+for a cropped camera's calibration: `pylon-cropped` cameras switch to the full sensor while
+calibration is active. Uncropped modes leave the ROI as the camera powered up.
+
+**Northstar corrects the principal point for the crop.** The principal point stays at the same
+physical spot on the sensor, so it moves by however far the current image's origin is from the
+calibration image's origin. For an 1800×1200 crop centred at (68, 8) with a 1920×1200 calibration at
+(8, 8), cx drops by 60 and cy is unchanged. Focal length and distortion do not change.
 `update_camera_matrix()` in [`config/config.py`](config/config.py) applies this, using the offsets the
-camera reports after the crop is set, and logs the shift. Every pipeline uses the corrected matrix.
+camera reports after the ROI is set, and logs the shift. Every pipeline uses the corrected matrix.
 **Do not hand-edit cx or cy for a crop**: the correction would then be applied twice.
 
-Before this correction existed, the three cropped daA1920s ran from 2026-07-29 with full-frame
-calibrations and no shift: a 60 px offset, about 2.8° of yaw error in each camera's pose.
+Before this correction existed, the three cropped daA1920s ran from 2026-07-29 with an 1800×1200 crop
+at (60, 0) and no shift. Against the calibration image at (8, 8), that is 52 px of yaw error (about
+2.4°) and 8 px of pitch error (about 0.4°) in each camera's pose. Publishing 1920×1200 to a
+`pylon-cropped` camera put its image at (0, 0), still 8 px off in both axes.
 
 ---
 

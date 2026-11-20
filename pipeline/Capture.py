@@ -352,34 +352,40 @@ class PylonCapture(Capture):
     def _configure_roi(self, config_store: ConfigStore, timeString: str) -> None:
         """Set the image ROI, and record where it sits on the sensor.
 
-        Every mode sets the ROI explicitly: the camera keeps its ROI for as
-        long as it has power, so a mode that left it alone would inherit
-        whatever crop the previous session used. For the same reason the full
-        size is not read from Width, which is only the full width if nothing
-        has cropped the camera since it powered on. It comes from WidthMax and
-        HeightMax instead, with the offsets zeroed first, because the maximums
-        shrink as the offsets grow.
+        The sensor is larger than the image the camera delivers at power-on: a
+        daA1920-160um has a 1936x1216 sensor and powers up with a 1920x1200 ROI
+        at (8, 8). The sensor size is read from WidthMax and HeightMax with the
+        offsets zeroed first, because the maximums shrink as the offsets grow.
+        Width is no use for this: it is whatever the last session left.
 
-        Calibration always uses the full sensor, so every calibration file
-        describes it and a crop only needs the principal point shifted by its
-        offset (see update_camera_matrix).
+        A cropped camera centres its crop on the sensor, and switches to the
+        full sensor while calibration is active. Uncropped modes keep the ROI
+        the camera powered up with, which is the image their calibrations were
+        made from. Either way, update_camera_matrix() shifts the principal
+        point by where this image sits relative to the calibration's image.
         """
         node_map = self._camera.GetNodeMap()
+        found_offset_x = node_map.GetNode("OffsetX").GetValue()
+        found_offset_y = node_map.GetNode("OffsetY").GetValue()
         node_map.GetNode("OffsetX").SetValue(0)
         node_map.GetNode("OffsetY").SetValue(0)
         sensor_width = node_map.GetNode("WidthMax").GetValue()
         sensor_height = node_map.GetNode("HeightMax").GetValue()
 
-        if self._mode == "cropped" and not config_store.local_config.calibrating:
+        if self._mode != "cropped":
+            # Width and Height are unchanged, so the offsets they had are still valid
+            node_map.GetNode("OffsetX").SetValue(found_offset_x)
+            node_map.GetNode("OffsetY").SetValue(found_offset_y)
+        elif config_store.local_config.calibrating:
+            node_map.GetNode("Width").SetValue(sensor_width)
+            node_map.GetNode("Height").SetValue(sensor_height)
+        else:
             width = config_store.remote_config.camera_resolution_width
             height = config_store.remote_config.camera_resolution_height
             node_map.GetNode("Width").SetValue(width)
             node_map.GetNode("Height").SetValue(height)
             self._set_aligned(node_map.GetNode("OffsetX"), (sensor_width - width) / 2)
             self._set_aligned(node_map.GetNode("OffsetY"), (sensor_height - height) / 2)
-        else:
-            node_map.GetNode("Width").SetValue(sensor_width)
-            node_map.GetNode("Height").SetValue(sensor_height)
 
         # Read back what the camera took: the offsets are rounded to its increment
         roi = ImageROI(

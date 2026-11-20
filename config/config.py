@@ -72,11 +72,16 @@ class LocalConfig:
 def update_camera_matrix(local_config: LocalConfig, timeString: str) -> None:
     """Derive camera_matrix from the calibration and the current image ROI.
 
-    Calibrations describe the full sensor. A cropped image starts offset_x
-    columns and offset_y rows into it, so the principal point, which stays at
-    the same physical spot on the sensor, sits that much closer to the image's
-    origin. Focal length and distortion are unchanged: a crop does not rescale
-    pixels, and distortion is applied relative to the principal point.
+    The principal point stays at the same physical spot on the sensor, so its
+    coordinates move by however far the current image's origin is from the
+    origin of the image the calibration was made from. Focal length and
+    distortion are unchanged: a crop does not rescale pixels, and distortion
+    is applied relative to the principal point.
+
+    A calibration file records its image size but not where that image sat on
+    the sensor. It is taken to be centred, which is where Basler cameras put
+    their power-on ROI (1920x1200 at (8, 8) on a daA1920-160um's 1936x1216
+    sensor), and where a cropped camera's full-sensor calibration trivially is.
     """
     if local_config.calibration_camera_matrix is None:
         local_config.camera_matrix = None
@@ -85,17 +90,31 @@ def update_camera_matrix(local_config: LocalConfig, timeString: str) -> None:
     camera_matrix = local_config.calibration_camera_matrix.copy()
     roi = local_config.image_roi
     if roi is not None:
+        calibration_x, calibration_y = 0, 0
         resolution = local_config.calibration_resolution
-        if resolution is not None and resolution != (roi.sensor_width, roi.sensor_height):
+        if resolution is None:
+            print(timeString, "Warning: calibration does not record its resolution; assuming it covers the full sensor")
+        elif resolution[0] > roi.sensor_width or resolution[1] > roi.sensor_height:
             print(
                 timeString,
-                f"Warning: calibration is for {resolution[0]}x{resolution[1]} but the sensor is "
-                f"{roi.sensor_width}x{roi.sensor_height}; the crop correction assumes a full-sensor calibration",
+                f"Warning: calibration is for {resolution[0]}x{resolution[1]}, larger than the "
+                f"{roi.sensor_width}x{roi.sensor_height} sensor; assuming it starts at the sensor's origin",
             )
-        camera_matrix[0, 2] -= roi.offset_x
-        camera_matrix[1, 2] -= roi.offset_y
-        if roi.offset_x != 0 or roi.offset_y != 0:
-            print(timeString, f"Shifted principal point by ({-roi.offset_x}, {-roi.offset_y}) for the cropped image")
+        else:
+            calibration_x = (roi.sensor_width - resolution[0]) // 2
+            calibration_y = (roi.sensor_height - resolution[1]) // 2
+            if (calibration_x, calibration_y) != (0, 0):
+                print(
+                    timeString,
+                    f"Calibration image taken as {resolution[0]}x{resolution[1]} centred on the sensor, "
+                    f"at ({calibration_x}, {calibration_y})",
+                )
+        shift_x = roi.offset_x - calibration_x
+        shift_y = roi.offset_y - calibration_y
+        camera_matrix[0, 2] -= shift_x
+        camera_matrix[1, 2] -= shift_y
+        if shift_x != 0 or shift_y != 0:
+            print(timeString, f"Shifted principal point by ({-shift_x}, {-shift_y}) for the image ROI")
     local_config.camera_matrix = camera_matrix
 
 
