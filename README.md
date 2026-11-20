@@ -328,7 +328,7 @@ Camera assignments as last recorded:
 | BL | daA1920-160um | 40708556 | 2 (`0x03200000`) |
 | BR | daA1920-160um | 40708542 | 0 (`0x01200000`) |
 | BCL | daA1280-54um | 24608727 | 3 (`0x02220000`) |
-| BCH | daA1920-160um | 40777399 | 1 (`0x00200000`) |
+| BCH | daA1920-160um | 40777404 | 1 (`0x00200000`) |
 
 #### `configCenter` — retained, not deployed
 
