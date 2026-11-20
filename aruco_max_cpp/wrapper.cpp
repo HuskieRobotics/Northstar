@@ -78,6 +78,8 @@ public:
 
     return py::make_tuple(py_corners, py_ids);
   }
+
+  bool uses_metal() const { return detector.usesMetal(); }
 };
 
 PYBIND11_MODULE(aruco_max, m) {
@@ -86,5 +88,7 @@ PYBIND11_MODULE(aruco_max, m) {
   py::class_<ArucoMaxDetectorPy>(m, "ArucoMaxDetector")
       .def(py::init<int>(), py::arg("dict_id"))
       .def("detect", &ArucoMaxDetectorPy::detect,
-           "Detect markers in a grayscale numpy array");
+           "Detect markers in a grayscale numpy array")
+      .def("uses_metal", &ArucoMaxDetectorPy::uses_metal,
+           "Whether adaptive thresholding runs on the GPU (Metal)");
 }

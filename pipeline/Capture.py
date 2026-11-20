@@ -14,12 +14,16 @@ import time
 import traceback
 from typing import Tuple, Union
 
-import AVFoundation
 import cv2
 import numpy
 from config.config import ConfigStore, ImageROI, update_camera_matrix
 from output.VideoWriter import FRAMERATE as RECORDING_FRAMERATE
 from pypylon import genicam, pylon
+
+# AVFoundation (pyobjc) exists only on macOS. Importing it unconditionally kept
+# the whole pipeline from starting anywhere else.
+if sys.platform == "darwin":
+    import AVFoundation
 
 # How long a restart may take to release the camera and shut Python down. A
 # camera that hangs while still attached answers nothing, so every request pylon
@@ -646,7 +650,6 @@ class GStreamerCapture(Capture):
 
 CAPTURE_IMPLS = {
     "": DefaultCapture,
-    "avfoundation": AVFoundationCapture,
     "pylon": lambda: PylonCapture(),
     "pylon-flipped": lambda: PylonCapture(is_flipped=True),
     "pylon-color": lambda: PylonCapture("color"),
@@ -655,3 +658,5 @@ CAPTURE_IMPLS = {
     "pylon-cropped-flipped": lambda: PylonCapture("cropped", is_flipped=True),
     "gstreamer": GStreamerCapture,
 }
+if sys.platform == "darwin":
+    CAPTURE_IMPLS["avfoundation"] = AVFoundationCapture

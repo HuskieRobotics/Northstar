@@ -36,6 +36,7 @@ class ArucoMaxFiducialDetector(FiducialDetector):
     def __init__(self, dictionary_id) -> None:
         import aruco_max
         self._detector = aruco_max.ArucoMaxDetector(cv2.aruco.DICT_APRILTAG_36h11)
+        print("aruco_max adaptive threshold: " + ("Metal (GPU)" if self._detector.uses_metal() else "CPU"))
 
     def detect_fiducials(self, image: cv2.Mat, config_store: ConfigStore) -> List[FiducialImageObservation]:
         if len(image.shape) > 2:
